@@ -1,0 +1,53 @@
+server:
+  port: 3000
+spring:
+  application:
+    name: z-dick-system
+
+  # 数据库配置
+  datasource:
+    url: jdbc:mysql://localhost:3306/z_disk_system?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=UTC
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  # redis
+  redis:
+    host: localhost
+    port: 6379
+    password:
+    database: 0
+
+  # 邮箱
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: 1509750464@qq.com
+    password: jjmixvyyngrlgdai
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+
+# Mybatis配置
+mybatis-plus:
+  type-aliases-package: com.good.zdisksystem.entity.model # 映射实体类路径
+  mapper-locations: classpath:/mapper/**/*.xml  # mapper.xml映射路径
+  configuration:
+    map-underscore-to-camel-case: true # 开启驼峰映射
+
+
+
+# 打印sql
+logging:
+  level:
+    org.mybatis: debug
+    com.good.web: DEBUG
+
+# JWT
+jwt:
+  secret: cXIwQ0yBkOMTYT/cKrixmD2yLrpqxA1lsWln4btVH8s9F+swEz/B+l3/Z3ArdkHO7dE9rAr8Amm3P/eBV1mGmw==
+  expiration: 86400
+

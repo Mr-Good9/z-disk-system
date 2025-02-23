@@ -1,0 +1,30 @@
+package com.good.zdisksystem.common.utils;
+
+import com.google.code.kaptcha.Producer;
+import com.google.code.kaptcha.impl.DefaultKaptcha;
+import com.google.code.kaptcha.util.Config;
+import org.springframework.context.annotation.Bean;
+import org.springframework.stereotype.Component;
+
+import java.util.Properties;
+
+@Component
+public class CaptchaUtils {
+
+    @Bean
+    public Producer captchaProducer() {
+        Properties properties = new Properties();
+        properties.setProperty("kaptcha.border", "no");
+        properties.setProperty("kaptcha.textproducer.font.color", "black");
+        properties.setProperty("kaptcha.textproducer.char.space", "5");
+        properties.setProperty("kaptcha.textproducer.char.length", "4");
+        properties.setProperty("kaptcha.image.height", "40");
+        properties.setProperty("kaptcha.image.width", "120");
+        properties.setProperty("kaptcha.textproducer.font.size", "30");
+
+        Config config = new Config(properties);
+        DefaultKaptcha defaultKaptcha = new DefaultKaptcha();
+        defaultKaptcha.setConfig(config);
+        return defaultKaptcha;
+    }
+} 

@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.good.zdisksystem.mapper.ChatMessageMapper">
+
+    <!-- 获取聊天记录 -->
+    <select id="getChatMessages" resultType="com.good.zdisksystem.entity.model.ChatMessage">
+        <!-- 查询双向聊天记录并按时间排序 -->
+        SELECT *
+        FROM chat_message
+        WHERE (from_user_id = #{userId} AND to_user_id = #{friendId})
+           OR (from_user_id = #{friendId} AND to_user_id = #{userId})
+        ORDER BY create_time ASC
+    </select>
+    
+    <!-- 标记消息为已读 -->
+    <update id="markAsRead">
+        UPDATE chat_message
+        SET status = 1,
+            update_time = NOW()
+        WHERE to_user_id = #{toUserId}
+          AND from_user_id = #{fromUserId}
+          AND status = 0
+    </update>
+    
+</mapper> 

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.good.zdisksystem.mapper.UserFriendMapper">
+
+    <resultMap id="UserFriendVO" type="com.good.zdisksystem.entity.vo.UserFriendVO">
+        <id property="id" column="id"/>
+        <result property="friendId" column="friend_id"/>
+        <result property="username" column="username"/>
+        <result property="nickname" column="nickname"/>
+        <result property="avatar" column="avatar"/>
+        <result property="remark" column="remark"/>
+        <result property="groupId" column="group_id"/>
+        <result property="groupName" column="group_name"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="createTimeStr" column="create_time_str"/>
+    </resultMap>
+
+    <select id="getFriendList" resultMap="UserFriendVO">
+        SELECT 
+            f.id, f.friend_id, f.remark, f.group_id, f.status, f.create_time,
+            u.username, u.nickname, u.avatar,
+            fg.name as group_name,
+            DATE_FORMAT(f.create_time, '%Y-%m-%d %H:%i:%s') as create_time_str
+        FROM friend f
+        LEFT JOIN user u ON f.friend_id = u.id
+        LEFT JOIN friend_group fg ON f.group_id = fg.id
+        WHERE f.user_id = #{userId} AND f.status = 1
+        ORDER BY fg.sort ASC, f.create_time DESC
+    </select>
+
+    <select id="searchFriends" resultType="com.good.zdisksystem.entity.vo.UserVO">
+        SELECT 
+            u.id,
+            u.username,
+            u.nickname,
+            u.avatar,
+            CASE WHEN f.id IS NOT NULL THEN 1 ELSE 0 END as is_friend
+        FROM user u
+        LEFT JOIN friend f ON u.id = f.friend_id 
+            AND f.user_id = #{userId}
+            AND f.status = 1
+        WHERE u.id != #{userId}
+            AND u.status = 1
+            AND (
+                u.username LIKE CONCAT('%', #{keyword}, '%')
+                OR u.nickname LIKE CONCAT('%', #{keyword}, '%')
+                OR u.email LIKE CONCAT('%', #{keyword}, '%')
+            )
+        ORDER BY u.create_time DESC
+    </select>
+
+    <select id="getFriendDetail" resultMap="UserFriendVO">
+        SELECT 
+            f.id, f.friend_id, f.remark, f.group_id, f.status, f.create_time,
+            u.username, u.nickname, u.avatar,
+            fg.name as group_name,
+            DATE_FORMAT(f.create_time, '%Y-%m-%d %H:%i:%s') as create_time_str
+        FROM friend f
+        LEFT JOIN user u ON f.friend_id = u.id
+        LEFT JOIN friend_group fg ON f.group_id = fg.id
+        WHERE f.user_id = #{userId} 
+        AND f.friend_id = #{friendId}
+        AND f.status = 1
+        LIMIT 1
+    </select>
+
+</mapper> 
