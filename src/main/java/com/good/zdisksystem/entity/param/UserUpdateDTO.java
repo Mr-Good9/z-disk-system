@@ -1,4 +1,4 @@
-package com.good.zdisksystem.model.dto;
+package com.good.zdisksystem.entity.param;
 
 import lombok.Data;
 
@@ -9,9 +9,9 @@ import javax.validation.constraints.NotBlank;
 public class UserUpdateDTO {
     @NotBlank(message = "昵称不能为空")
     private String nickname;
-    
+
     @Email(message = "邮箱格式不正确")
     private String email;
-    
+
     private String role;
-} 
+}

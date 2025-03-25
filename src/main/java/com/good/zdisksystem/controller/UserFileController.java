@@ -44,8 +44,8 @@ public class UserFileController {
      * 获取文件列表
      */
     @GetMapping("/list")
-    public CommonResult<List<File>> getFileList(@RequestParam(required = false) Long parentId) {
-        List<File> files = userFileService.getFileList(parentId);
+    public CommonResult<List<File>> getFileList(@RequestParam(required = false) Long parentId, @RequestParam(required = false) Integer isShared) {
+        List<File> files = userFileService.getFileList(parentId, isShared);
         return CommonResult.success(files);
     }
 
@@ -115,5 +115,14 @@ public class UserFileController {
         CommonResult<String> success = CommonResult.success(null);
         success.setData(previewUrl);
         return success;
+    }
+
+    /**
+     * 获取视频预览URL
+     */
+    @GetMapping("/{fileId}/video-preview")
+    public CommonResult<String> getVideoPreviewUrl(@PathVariable Long fileId) {
+        String previewUrl = userFileService.getVideoPreviewUrl(fileId);
+        return CommonResult.success(previewUrl);
     }
 }

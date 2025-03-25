@@ -1,8 +1,8 @@
 package com.good.zdisksystem.service.impl;
 
-import com.good.zdisksystem.model.dto.SystemSettingsDTO;
-import com.good.zdisksystem.model.vo.SystemSettingsVO;
-import com.good.zdisksystem.model.vo.SystemStatisticsVO;
+import com.good.zdisksystem.entity.param.SystemSettingsDTO;
+import com.good.zdisksystem.entity.vo.SystemSettingsVO;
+import com.good.zdisksystem.entity.vo.SystemStatisticsVO;
 import com.good.zdisksystem.service.SystemService;
 import com.good.zdisksystem.service.UserService;
 import com.good.zdisksystem.service.FileService;
@@ -74,4 +74,4 @@ public class SystemServiceImpl implements SystemService {
         // 恢复系统数据
         // 从备份文件恢复数据库、文件等
     }
-} 
+}

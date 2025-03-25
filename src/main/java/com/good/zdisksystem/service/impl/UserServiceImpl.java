@@ -2,12 +2,9 @@ package com.good.zdisksystem.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ObjectUtil;
-import com.alibaba.druid.sql.visitor.functions.If;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
-import com.baomidou.mybatisplus.core.injector.methods.UpdateById;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.Assert;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -21,7 +18,7 @@ import com.good.zdisksystem.entity.model.Role;
 import com.good.zdisksystem.entity.model.UserRole;
 import com.good.zdisksystem.entity.param.UpdateUserParam;
 import com.good.zdisksystem.entity.param.UserQueryParam;
-import com.good.zdisksystem.model.dto.UserUpdateDTO;
+import com.good.zdisksystem.entity.param.UserUpdateDTO;
 import com.good.zdisksystem.security.utils.JwtUtils;
 import com.good.zdisksystem.entity.model.User;
 import com.good.zdisksystem.entity.param.LoginRequest;
@@ -30,7 +27,6 @@ import com.good.zdisksystem.entity.vo.AuthResponse;
 import com.good.zdisksystem.entity.vo.UserInfoVo;
 import com.good.zdisksystem.entity.vo.UserVO;
 import com.good.zdisksystem.mapper.UserMapper;
-import com.good.zdisksystem.service.IRoleService;
 import com.good.zdisksystem.service.IUserRoleService;
 import com.good.zdisksystem.service.UserService;
 import com.good.zdisksystem.service.EmailService;
@@ -43,7 +39,6 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -461,6 +456,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private UserInfoVo convertToUserInfoVo(User user) {
         UserInfoVo vo = new UserInfoVo();
+        BeanUtils.copyProperties(user, vo);
         vo.setUsername(user.getUsername());
         vo.setNickname(user.getNickname());
         vo.setEmail(user.getEmail());

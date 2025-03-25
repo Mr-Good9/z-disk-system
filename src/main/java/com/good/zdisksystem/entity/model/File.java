@@ -1,6 +1,7 @@
 package com.good.zdisksystem.entity.model;
 
 import com.baomidou.mybatisplus.annotation.*;
+import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import java.time.LocalDateTime;
 
@@ -30,6 +31,29 @@ public class File {
     // 是否是文件夹(0-否 1-是)
     @TableField("is_folder")
     private Integer isFolder = 0;
+
+    // 是否共享(0-否 1-是)
+    @TableField("is_shared")
+    private Integer isShared = 0;
+
+    @ApiModelProperty(value = "是否视频文件")
+    private Integer isVideo;
+
+    @ApiModelProperty(value = "视频时长(秒)")
+    @TableField(exist = false)
+    private Float videoDuration;
+
+    @TableField(exist = false)
+    @ApiModelProperty(value = "视频宽度")
+    private Integer videoWidth;
+
+    @TableField(exist = false)
+    @ApiModelProperty(value = "视频高度")
+    private Integer videoHeight;
+
+    @TableField(exist = false)
+    @ApiModelProperty(value = "视频缩略图路径")
+    private String videoThumbnail;
 
     // 父文件夹ID，根目录为0
     @TableField("parent_id")

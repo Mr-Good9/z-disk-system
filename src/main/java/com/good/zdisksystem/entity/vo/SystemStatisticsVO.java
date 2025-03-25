@@ -1,4 +1,4 @@
-package com.good.zdisksystem.model.vo;
+package com.good.zdisksystem.entity.vo;
 
 import lombok.Data;
 
@@ -13,4 +13,4 @@ public class SystemStatisticsVO {
     private Double cpuUsage;        // CPU使用率
     private Double memoryUsage;     // 内存使用率
     private String systemUptime;    // 系统运行时间
-} 
+}

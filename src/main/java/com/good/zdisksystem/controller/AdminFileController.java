@@ -1,14 +1,23 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.common.exception.CustomException;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.result.PageResult;
+import com.good.zdisksystem.entity.model.File;
 import com.good.zdisksystem.entity.vo.FileStatisticsVO;
 import com.good.zdisksystem.entity.param.FileQueryParam;
-import com.good.zdisksystem.model.vo.FileVO;
+import com.good.zdisksystem.entity.vo.FileVO;
 import com.good.zdisksystem.service.FileService;
+import com.good.zdisksystem.service.MinioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletResponse;
+import javax.validation.Valid;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.URLEncoder;
 import java.util.List;
 
 @RestController
@@ -17,6 +26,9 @@ public class AdminFileController {
 
     @Autowired
     private FileService fileService;
+
+    @Autowired
+    private MinioService minioService;
 
     /**
      * 获取文件统计信息
@@ -53,4 +65,28 @@ public class AdminFileController {
         String url = fileService.getPreviewUrl(fileId);
         return CommonResult.success(url);
     }
-} 
+
+    @GetMapping("/{fileId}/download")
+    public void downloadFile(@PathVariable Long fileId, HttpServletResponse response) throws IOException {
+        // 获取文件信息
+        File file = fileService.getById(fileId);
+        if (file == null) {
+            throw new CustomException("文件不存在");
+        }
+
+        // 设置响应头
+        response.setContentType("application/octet-stream");
+        response.setHeader("Content-Disposition", "attachment;filename=" + URLEncoder.encode(file.getName(), "UTF-8"));
+
+        // 从MinIO获取文件并写入响应
+        try (InputStream inputStream = minioService.getFileInputStream(file.getPath());
+             OutputStream outputStream = response.getOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, len);
+            }
+            outputStream.flush();
+        }
+    }
+}

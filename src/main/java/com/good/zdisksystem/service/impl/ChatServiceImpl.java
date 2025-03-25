@@ -19,6 +19,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.ArrayList;
 
 @Slf4j
 @Service
@@ -30,6 +32,9 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
     private final SimpMessagingTemplate messagingTemplate;
     @Autowired
     private UserMapper userMapper;
+
+    // 使用 ConcurrentHashMap 存储在线用户
+    private static final ConcurrentHashMap<Long, LocalDateTime> onlineUsers = new ConcurrentHashMap<>();
 
     @Override
     @Transactional
@@ -47,29 +52,31 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
 
     @Override
     public List<ChatSession> getUserSessions(Long userId) {
-        return chatSessionMapper.getUserSessions(userId);
+        List<ChatSession> sessions = chatSessionMapper.getUserSessions(userId);
+        
+        // 确保每个会话都有完整的好友信息
+        sessions.forEach(session -> {
+            if (session.getFriendUsername() == null) {
+                User friend = userMapper.selectById(session.getFriendId());
+                if (friend != null) {
+                    session.setFriendNickname(friend.getNickname());
+                    session.setFriendUsername(friend.getUsername());
+                    session.setFriendAvatar(friend.getAvatar());
+                }
+            }
+        });
+        
+        return sessions;
     }
 
     @Override
     public List<ChatMessage> getChatMessages(Long userId, Long friendId) {
+        // 获取聊天记录，现在已经包含了发送者的昵称和头像信息
         List<ChatMessage> messages = chatMessageMapper.getChatMessages(userId, friendId);
         
-        // 获取用户信息
-        User currentUser = userMapper.selectById(userId);
-        User friendUser = userMapper.selectById(friendId);
-        
-        // 设置发送者信息
-        messages.forEach(msg -> {
-            if (msg.getFromUserId().equals(userId)) {
-                msg.setSenderNickname(currentUser.getNickname() != null ? 
-                    currentUser.getNickname() : currentUser.getUsername());
-                msg.setSenderAvatar(currentUser.getAvatar());
-            } else {
-                msg.setSenderNickname(friendUser.getNickname() != null ? 
-                    friendUser.getNickname() : friendUser.getUsername());
-                msg.setSenderAvatar(friendUser.getAvatar());
-            }
-        });
+        log.info("获取到的消息列表:");
+        messages.forEach(msg -> log.info("消息 - fromUserId: {}, toUserId: {}, content: {}, senderNickname: {}", 
+            msg.getFromUserId(), msg.getToUserId(), msg.getContent(), msg.getSenderNickname()));
         
         return messages;
     }
@@ -77,11 +84,18 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
     @Override
     @Transactional
     public void markMessagesAsRead(Long userId, Long friendId) {
-        // 将消息标记为已读
-        chatMessageMapper.markAsRead(userId, friendId);
-        
-        // 更新会话的未读消息数
-        chatSessionMapper.updateUnreadCount(userId, friendId, 0);
+        try {
+            // 标记消息为已读
+            chatMessageMapper.markAsRead(userId, friendId);
+            
+            // 更新会话的未读消息数
+            chatSessionMapper.updateUnreadCount(userId, friendId, 0);
+            
+            log.info("已将用户 {} 接收自好友 {} 的消息标记为已读", userId, friendId);
+        } catch (Exception e) {
+            log.error("标记消息已读失败: userId={}, friendId={}", userId, friendId, e);
+            throw new RuntimeException("标记消息已读失败", e);
+        }
     }
 
     @Override
@@ -104,6 +118,12 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
         );
         
         if (session == null) {
+            // 获取好友信息
+            User friend = userMapper.selectById(friendId);
+            if (friend == null) {
+                throw new RuntimeException("好友不存在");
+            }
+            
             // 创建新会话
             session = new ChatSession();
             session.setUserId(userId);
@@ -111,16 +131,36 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
             session.setUnreadCount(0);
             session.setCreateTime(LocalDateTime.now());
             session.setUpdateTime(LocalDateTime.now());
+            // 设置好友信息
+            session.setFriendNickname(friend.getNickname());
+            session.setFriendUsername(friend.getUsername());
+            session.setFriendAvatar(friend.getAvatar());
             chatSessionMapper.insert(session);
             
             // 同时为好友创建会话
+            User currentUser = userMapper.selectById(userId);
             ChatSession friendSession = new ChatSession();
             friendSession.setUserId(friendId);
             friendSession.setFriendId(userId);
             friendSession.setUnreadCount(0);
             friendSession.setCreateTime(LocalDateTime.now());
             friendSession.setUpdateTime(LocalDateTime.now());
+            // 设置当前用户信息（作为好友的好友信息）
+            friendSession.setFriendNickname(currentUser.getNickname());
+            friendSession.setFriendUsername(currentUser.getUsername());
+            friendSession.setFriendAvatar(currentUser.getAvatar());
             chatSessionMapper.insert(friendSession);
+        } else {
+            // 如果会话存在但没有好友信息，更新好友信息
+            if (session.getFriendUsername() == null) {
+                User friend = userMapper.selectById(friendId);
+                if (friend != null) {
+                    session.setFriendNickname(friend.getNickname());
+                    session.setFriendUsername(friend.getUsername());
+                    session.setFriendAvatar(friend.getAvatar());
+                    chatSessionMapper.updateById(session);
+                }
+            }
         }
         
         return session;
@@ -163,5 +203,31 @@ public class ChatServiceImpl extends ServiceImpl<ChatMessageMapper, ChatMessage>
         } else {
             chatSessionMapper.updateById(session);
         }
+    }
+
+    @Override
+    public List<Long> getOnlineUsers() {
+        // 清理超时用户（例如15分钟未活动）
+        LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(15);
+        onlineUsers.entrySet().removeIf(entry -> entry.getValue().isBefore(timeoutThreshold));
+        
+        return new ArrayList<>(onlineUsers.keySet());
+    }
+
+    // 添加用户上线方法
+    public void userOnline(Long userId) {
+        onlineUsers.put(userId, LocalDateTime.now());
+        log.info("用户上线: {}", userId);
+    }
+
+    // 添加用户下线方法
+    public void userOffline(Long userId) {
+        onlineUsers.remove(userId);
+        log.info("用户下线: {}", userId);
+    }
+
+    // 更新用户最后活动时间
+    public void updateUserActivity(Long userId) {
+        onlineUsers.put(userId, LocalDateTime.now());
     }
 }

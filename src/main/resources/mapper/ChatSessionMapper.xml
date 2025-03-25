@@ -2,20 +2,20 @@
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.good.zdisksystem.mapper.ChatSessionMapper">
 
-    <select id="getUserSessions" resultType="com.good.zdisksystem.entity.model.ChatSession">
-        SELECT cs.*, u.nickname as friendNickname, u.avatar as friendAvatar
-        FROM chat_session cs
-        LEFT JOIN user u ON cs.friend_id = u.id
-        WHERE cs.user_id = #{userId}
-        ORDER BY cs.update_time DESC
-    </select>
-    
+<!--    <select id="getUserSessions" resultType="com.good.zdisksystem.entity.model.ChatSession">-->
+<!--        SELECT cs.*, u.nickname as friendNickname, u.avatar as friendAvatar-->
+<!--        FROM chat_session cs-->
+<!--        LEFT JOIN user u ON cs.friend_id = u.id-->
+<!--        WHERE cs.user_id = #{userId}-->
+<!--        ORDER BY cs.update_time DESC-->
+<!--    </select>-->
+
     <update id="updateUnreadCount">
         UPDATE chat_session
-        SET unread_count = #{count},
+        SET unread_count = #{unreadCount},
             update_time = NOW()
         WHERE user_id = #{userId}
           AND friend_id = #{friendId}
     </update>
-    
-</mapper> 
+
+</mapper>

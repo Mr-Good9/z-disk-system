@@ -13,7 +13,7 @@ import java.util.List;
 
 public interface FileShareService {
     // 创建分享
-    FileShare createShare(Long fileId, Integer expireDays, Integer shareType);
+    FileShare createShare(Long fileId, Integer expireDays, Integer shareType, boolean isShared);
 
     // 获取分享详情
     FileShare getShareByCode(String shareCode);
@@ -63,4 +63,7 @@ public interface FileShareService {
      * 获取分页的分享列表
      */
     PageResult<ShareFileVO> getShareList(ShareListParam param);
+
+    // 添加新方法
+    PageResult<ShareFileVO> getPublicShares(ShareListParam param);
 }

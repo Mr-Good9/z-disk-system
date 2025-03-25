@@ -1,6 +1,7 @@
 package com.good.zdisksystem.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.good.zdisksystem.common.exception.CustomException;
 import com.good.zdisksystem.common.exception.enums.GlobalErrorCodeConstants;
 import com.good.zdisksystem.common.result.CommonResult;
@@ -26,6 +27,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.BeanUtils;
 
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
@@ -33,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -54,19 +57,19 @@ public class FileShareServiceImpl implements FileShareService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FileShare createShare(Long fileId, Integer expireDays, Integer shareType) {
+    public FileShare createShare(Long fileId, Integer expireDays, Integer shareType, boolean isShared) {
         // 获取当前用户
         User user = RequestUser.getUser();
 
         // 检查文件是否存在
         File file = fileMapper.selectById(fileId);
         if (file == null || file.getIsDeleted() == 1) {
-            throw new CustomException(GlobalErrorCodeConstants.FILE_NOT_FOUND);
+            throw new CustomException("文件不存在或已删除");
         }
 
         // 检查是否是文件所有者
         if (!file.getUserId().equals(user.getId())) {
-            throw new CustomException(GlobalErrorCodeConstants.FORBIDDEN);
+            throw new CustomException("您没有权限操作此文件");
         }
 
         // 创建分享记录
@@ -88,6 +91,13 @@ public class FileShareServiceImpl implements FileShareService {
         share.setIsDeleted(0);
 
         fileShareMapper.insert(share);
+
+        // 更新文件的is_shared状态为已共享
+        if (isShared) {
+            file.setIsShared(1); // 1表示已共享
+            fileMapper.updateById(file);
+        }
+
         return share;
     }
 
@@ -174,7 +184,7 @@ public class FileShareServiceImpl implements FileShareService {
         List<FileShare> shares = new ArrayList<>();
         for (Long fileId : fileIds) {
             // 默认为私密分享
-            shares.add(createShare(fileId, expireDays, 0));
+            shares.add(createShare(fileId, expireDays, 0, false));
         }
         return shares;
     }
@@ -481,5 +491,66 @@ public class FileShareServiceImpl implements FileShareService {
 
     private String generateShareCode() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+    }
+
+    @Override
+    public PageResult<ShareFileVO> getPublicShares(ShareListParam param) {
+        // 查询所有公共共享的文件
+        Page<FileShare> page = new Page<>(param.getPage(), param.getSize());
+
+        // 构建查询条件
+        LambdaQueryWrapper<FileShare> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(FileShare::getShareType, 1); // 公开分享
+        queryWrapper.eq(FileShare::getStatus, 0); // 状态正常
+        queryWrapper.eq(FileShare::getIsDeleted, 0); // 未删除
+
+        // 添加关键字搜索
+//        if (StringUtils.hasText(param.getKeyword())) {
+//            queryWrapper.like(FileShare::getFileName, param.getKeyword());
+//        }
+
+        // 排序
+        queryWrapper.orderByDesc(FileShare::getCreateTime);
+
+        // 执行分页查询
+        Page<FileShare> result = fileShareMapper.selectPage(page, queryWrapper);
+
+        // 转换为VO列表
+        List<ShareFileVO> voList = result.getRecords().stream()
+                .map(this::convertToVO)
+                .collect(Collectors.toList());
+
+        return null;
+    }
+
+    // 辅助方法，转换为VO
+    private ShareFileVO convertToVO(FileShare share) {
+        ShareFileVO vo = new ShareFileVO();
+        BeanUtils.copyProperties(share, vo);
+
+        // 查询文件信息和用户信息，丰富VO数据
+        File file = fileMapper.selectById(share.getFileId());
+        if (file != null) {
+            vo.setFileName(file.getName());
+            vo.setFileType(file.getType());
+            vo.setFileSize(file.getSize());
+        }
+
+        // 获取所有者信息
+        User owner = userMapper.selectById(share.getUserId());
+        if (owner != null) {
+            vo.setOwnerName(owner.getNickname() != null ? owner.getNickname() : owner.getUsername());
+        }
+
+        // 格式化时间
+        if (share.getCreateTime() != null) {
+            vo.setCreateTimeStr(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(share.getCreateTime()));
+        }
+
+        if (share.getExpireTime() != null) {
+            vo.setExpireTimeStr(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(share.getExpireTime()));
+        }
+
+        return vo;
     }
 }

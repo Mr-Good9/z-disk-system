@@ -46,7 +46,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .cors().and()
             .csrf().disable()
             .authorizeRequests()
-            .antMatchers("/api/auth/**").permitAll()
+            // 允许 WebSocket 端点访问
+            .antMatchers("/ws/**", "/ws").permitAll()
+            .antMatchers("/api/auth/**", "/api/health").permitAll()
             .anyRequest().authenticated()
             .and()
             .sessionManagement()
@@ -62,14 +64,24 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // 明确指定允许的域名
         configuration.setAllowedOrigins(Arrays.asList(
             "http://localhost:8080",
-            "http://localhost:3000"
-            // 添加其他需要的域名
+            "http://localhost:3000",
+            // 添加 WebSocket 协议
+            "ws://localhost:8080",
+            "ws://localhost:3000"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        configuration.setAllowedHeaders(Arrays.asList(
+            "*",
+            "Authorization",
+            "Content-Type",
+            "x-requested-with",
+            "X-Custom-Header",
+            "Upgrade",
+            "Connection"  // 添加 WebSocket 必需的头
+        ));
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 

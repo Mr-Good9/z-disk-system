@@ -1,4 +1,4 @@
-package com.good.zdisksystem.model.vo;
+package com.good.zdisksystem.entity.vo;
 
 import lombok.Data;
 
@@ -12,4 +12,4 @@ public class SystemSettingsVO {
     private Integer maxLoginAttempts;   // 最大登录尝试次数
     private String systemVersion;       // 系统版本
     private String lastUpdateTime;      // 最后更新时间
-} 
+}

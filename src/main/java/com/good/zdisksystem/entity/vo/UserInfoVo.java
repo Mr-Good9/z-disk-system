@@ -10,7 +10,7 @@ import java.util.List;
  */
 @Data
 public class UserInfoVo {
-
+    private Long id;
     private String username;
     private String nickname;
     private String email;
@@ -22,10 +22,10 @@ public class UserInfoVo {
     private String status;
 
     private List<String> roles;
-    
+
     // 添加存储相关字段
     private StorageInfo storage;
-    
+
     @Data
     public static class StorageInfo {
         private Long used;    // 已使用空间(bytes)

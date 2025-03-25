@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.good.zdisksystem.mapper.FileMapper">
+    <select id="countTotalFiles" resultType="long">
+        SELECT COUNT(*) FROM file WHERE is_deleted = 0
+    </select>
 
+    <select id="sumFileSize" resultType="long">
+        SELECT COALESCE(SUM(size), 0) FROM file WHERE is_deleted = 0
+    </select>
+
+    <select id="countSharedFiles" resultType="long">
+        SELECT COUNT(*) FROM file WHERE is_shared = 1 AND is_deleted = 0
+    </select>
+
+    <select id="countDeletedFiles" resultType="long">
+        SELECT COUNT(*) FROM file WHERE is_deleted = 1
+    </select>
 </mapper>

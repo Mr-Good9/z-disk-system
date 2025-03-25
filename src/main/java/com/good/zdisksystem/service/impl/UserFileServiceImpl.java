@@ -93,10 +93,14 @@ public class UserFileServiceImpl implements UserFileService {
             }
         }
 
-        // 获取文件扩展名
+        // 获取文件扩展名和MIME类型
         String originalFilename = file.getOriginalFilename();
         String extension = StringUtils.hasText(originalFilename) ?
                 FilenameUtils.getExtension(originalFilename) : "";
+        String contentType = file.getContentType();
+
+        // 检查是否为视频文件
+        boolean isVideo = isVideoFile(extension, contentType);
 
         // 生成文件存储路径
         String storagePath = generateStoragePath(user.getId(), extension);
@@ -121,6 +125,10 @@ public class UserFileServiceImpl implements UserFileService {
             userFile.setSize(file.getSize());
             userFile.setParentId(parentId != null ? parentId : 0L);
             userFile.setIsFolder(0);
+
+            // 设置是否为视频文件
+            userFile.setIsVideo(isVideo ? 1 : 0);
+
             userFile.setCreateTime(LocalDateTime.now());
             userFile.setUpdateTime(LocalDateTime.now());
             userFile.setIsDeleted(0);
@@ -178,7 +186,7 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public List<File> getFileList(Long parentId) {
+    public List<File> getFileList(Long parentId, Integer isShared) {
         // 获取当前用户
         User user = RequestUser.getUser();
 
@@ -187,6 +195,7 @@ public class UserFileServiceImpl implements UserFileService {
                 .eq(File::getUserId, user.getId())
                 .eq(File::getParentId, parentId != null ? parentId : 0L)
                 .eq(File::getIsDeleted, 0)
+                .eq(isShared != null, File::getIsShared, isShared)
                 .orderByAsc(File::getIsFolder)
                 .orderByDesc(File::getUpdateTime);
 
@@ -384,17 +393,6 @@ public class UserFileServiceImpl implements UserFileService {
         return fileMapper.selectList(wrapper);
     }
 
-    @Override
-    public String getPreviewUrl(Long fileId) {
-        File file = checkAndGetFile(fileId);
-        // 确保文件类型支持预览
-        if (!isPreviewable(file)) {
-            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_UNSUPPORTED);
-        }
-        // 生成预览URL
-        return generatePreviewUrl(file);
-    }
-
     // 检查文件是否支持预览
     private boolean isPreviewable(File file) {
         String type = file.getType();
@@ -406,22 +404,25 @@ public class UserFileServiceImpl implements UserFileService {
         );
     }
 
-    // 生成预览URL
-    private String generatePreviewUrl(File file) {
-        try {
-            // 生成一个有效期为7天的预签名URL
-            return minioClient.getPresignedObjectUrl(
-                    GetPresignedObjectUrlArgs.builder()
-                            .bucket(bucket)
-                            .object(file.getPath())
-                            .method(Method.GET)
-                            .expiry(7, TimeUnit.DAYS)
-                            .build()
-            );
-        } catch (Exception e) {
-            log.error("生成预览URL失败", e);
-            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_ERROR);
+    // 添加视频文件识别方法
+    private boolean isVideoFile(String extension, String contentType) {
+        // 通过扩展名判断
+        if (extension != null) {
+            extension = extension.toLowerCase();
+            return extension.equals("mp4") || extension.equals("avi") ||
+                   extension.equals("mov") || extension.equals("wmv") ||
+                   extension.equals("flv") || extension.equals("mkv") ||
+                   extension.equals("webm") || extension.equals("3gp") ||
+                   extension.equals("m4v") || extension.equals("mpg") ||
+                   extension.equals("mpeg");
         }
+
+        // 通过MIME类型判断
+        if (contentType != null) {
+            return contentType.startsWith("video/");
+        }
+
+        return false;
     }
 
     // 私有辅助方法
@@ -746,5 +747,115 @@ public class UserFileServiceImpl implements UserFileService {
             return null;
         }
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    @Override
+    public String getPreviewUrl(Long fileId) {
+        File file = checkAndGetFile(fileId);
+        log.info("获取文件预览URL: fileId={}, fileName={}, type={}, isVideo={}",
+                fileId, file.getName(), file.getType(), file.getIsVideo());
+
+        // 检查是否为视频文件并使用专门的视频预览方法
+        if (file.getIsVideo() != null && file.getIsVideo() == 1) {
+            log.info("通过isVideo字段识别到视频文件");
+            return getVideoPreviewUrl(fileId);
+        }
+
+        // 兼容旧数据，根据文件扩展名判断
+        if (file.getType() != null && isVideoFile(file.getType(), null)) {
+            log.info("通过文件扩展名识别到视频文件");
+            return getVideoPreviewUrl(fileId);
+        }
+
+        // 确保文件类型支持预览
+        if (!isPreviewable(file)) {
+            log.warn("不支持预览的文件类型: {}", file.getType());
+            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_UNSUPPORTED.getCode(),
+                    "不支持预览该类型的文件: " + file.getType());
+        }
+
+        // 生成预览URL
+        try {
+            String previewUrl = generatePreviewUrl(file);
+            log.info("成功生成预览URL");
+            return previewUrl;
+        } catch (Exception e) {
+            log.error("生成预览URL失败: {}", e.getMessage(), e);
+            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_ERROR.getCode(),
+                    "生成预览URL失败: " + e.getMessage());
+        }
+    }
+
+    // 改进预览URL生成方法，添加详细的异常处理
+    private String generatePreviewUrl(File file) {
+        try {
+            log.info("开始生成预览URL: filePath={}", file.getPath());
+            // 生成一个有效期为7天的预签名URL
+            String url = minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(bucket)
+                            .object(file.getPath())
+                            .method(Method.GET)
+                            .expiry(7, TimeUnit.DAYS)
+                            .build()
+            );
+            log.info("预览URL生成成功");
+            return url;
+        } catch (Exception e) {
+            log.error("生成预览URL时发生异常: {}", e.getMessage(), e);
+            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_ERROR.getCode(),
+                    "生成预览URL失败: " + e.getMessage());
+        }
+    }
+
+    // 改进视频预览URL方法，添加更多日志
+    @Override
+    public String getVideoPreviewUrl(Long fileId) {
+        // 获取文件信息
+        File file = checkAndGetFile(fileId);
+        log.info("尝试获取视频预览URL: fileId={}, fileName={}, type={}",
+                file.getId(), file.getName(), file.getType());
+
+        // 检查是否为视频文件
+        boolean isVideo = false;
+
+        // 先检查 isVideo 字段
+        if (file.getIsVideo() != null && file.getIsVideo() == 1) {
+            isVideo = true;
+            log.info("通过isVideo字段确认为视频文件");
+        } else {
+            // 根据扩展名判断
+            String extension = file.getType() != null ? file.getType().toLowerCase() : "";
+            isVideo = isVideoFile(extension, null);
+            log.info("通过文件扩展名判断是否为视频文件: extension={}, isVideo={}", extension, isVideo);
+        }
+
+        if (!isVideo) {
+            log.warn("尝试获取非视频文件的视频预览URL: fileId={}, type={}", fileId, file.getType());
+            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_UNSUPPORTED.getCode(),
+                    "该文件不是视频文件，无法预览");
+        }
+
+        try {
+            log.info("正在生成视频预览URL: fileId={}, fileName={}, path={}",
+                    file.getId(), file.getName(), file.getPath());
+
+            // 生成预览URL，设置有效期为2小时
+            String url = minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(bucket)
+                            .object(file.getPath())
+                            .method(Method.GET)
+                            .expiry(2, TimeUnit.HOURS)
+                            .build()
+            );
+
+            log.info("成功生成视频预览URL: {}", url);
+            return url;
+        } catch (Exception e) {
+            log.error("生成视频预览URL失败: {}", e.getMessage(), e);
+            throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_ERROR.getCode(),
+                    "生成视频预览URL失败: " + e.getMessage());
+        }
     }
 }

@@ -5,15 +5,14 @@ import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.entity.param.UserQueryParam;
 import com.good.zdisksystem.entity.vo.StorageUsageVO;
 import com.good.zdisksystem.entity.vo.UserVO;
-import com.good.zdisksystem.model.dto.SystemSettingsDTO;
-import com.good.zdisksystem.model.dto.UserUpdateDTO;
-import com.good.zdisksystem.model.vo.SystemSettingsVO;
-import com.good.zdisksystem.model.vo.SystemStatisticsVO;
+import com.good.zdisksystem.entity.param.SystemSettingsDTO;
+import com.good.zdisksystem.entity.param.UserUpdateDTO;
+import com.good.zdisksystem.entity.vo.SystemSettingsVO;
+import com.good.zdisksystem.entity.vo.SystemStatisticsVO;
 import com.good.zdisksystem.service.FileService;
 import com.good.zdisksystem.service.SystemService;
 import com.good.zdisksystem.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController

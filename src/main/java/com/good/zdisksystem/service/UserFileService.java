@@ -30,7 +30,7 @@ public interface UserFileService {
      * @param parentId 父文件夹ID
      * @return 文件列表
      */
-    List<File> getFileList(Long parentId);
+    List<File> getFileList(Long parentId ,Integer isShared);
 
     /**
      * 获取文件夹树
@@ -81,4 +81,11 @@ public interface UserFileService {
     void deleteFileCompletely(Long fileId);
 
     void clearRecycleBin();
+
+    /**
+     * 获取视频预览URL
+     * @param fileId 文件ID
+     * @return 视频预览URL
+     */
+    String getVideoPreviewUrl(Long fileId);
 }

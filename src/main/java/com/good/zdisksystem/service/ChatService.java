@@ -53,4 +53,28 @@ public interface ChatService extends IService<ChatMessage> {
      */
     ChatSession createOrGetSession(Long userId, Long friendId);
 
+    /**
+     * 获取在线用户列表
+     * @return 在线用户ID列表
+     */
+    List<Long> getOnlineUsers();
+
+    /**
+     * 用户上线
+     * @param userId 用户ID
+     */
+    void userOnline(Long userId);
+
+    /**
+     * 用户下线
+     * @param userId 用户ID
+     */
+    void userOffline(Long userId);
+
+    /**
+     * 更新用户活动
+     * @param userId 用户ID
+     */
+    void updateUserActivity(Long userId);
+
 }

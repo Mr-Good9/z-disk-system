@@ -10,7 +10,7 @@ import com.good.zdisksystem.entity.param.UserQueryParam;
 import com.good.zdisksystem.entity.vo.AuthResponse;
 import com.good.zdisksystem.entity.vo.UserInfoVo;
 import com.good.zdisksystem.entity.vo.UserVO;
-import com.good.zdisksystem.model.dto.UserUpdateDTO;
+import com.good.zdisksystem.entity.param.UserUpdateDTO;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;

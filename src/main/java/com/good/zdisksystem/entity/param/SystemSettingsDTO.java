@@ -1,4 +1,4 @@
-package com.good.zdisksystem.model.dto;
+package com.good.zdisksystem.entity.param;
 
 import lombok.Data;
 
@@ -10,4 +10,4 @@ public class SystemSettingsDTO {
     private String maintenanceMessage;  // 维护说明
     private Integer minPasswordLength;  // 密码最小长度
     private Integer maxLoginAttempts;   // 最大登录尝试次数
-} 
+}
