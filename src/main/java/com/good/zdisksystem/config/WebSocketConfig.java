@@ -1,7 +1,9 @@
 package com.good.zdisksystem.config;
 
-import com.good.zdisksystem.security.utils.JwtUtils;
+import cn.hutool.jwt.JWTUtil;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.*;
 import org.springframework.messaging.simp.config.ChannelRegistration;
@@ -15,25 +17,29 @@ import org.springframework.messaging.simp.stomp.StompHeaderAccessor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import java.util.List;
 import java.util.ArrayList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
-import org.springframework.messaging.converter.MessageConverter;
 import org.springframework.context.event.EventListener;
 import org.springframework.web.socket.messaging.SessionConnectedEvent;
 import org.springframework.web.socket.messaging.SessionDisconnectEvent;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.WebSocketHandlerDecorator;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
+
+import java.security.Principal;
+import java.util.Map;
 
 /**
  * WebSocket配置类
  * 用于配置WebSocket连接端点和消息代理
  */
 @Configuration
-// @EnableWebSocketMessageBroker 注释掉这一行来禁用WebSocket
+@EnableWebSocketMessageBroker
 @RequiredArgsConstructor
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
@@ -49,13 +55,22 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         registry.addEndpoint("/ws")
-            .setAllowedOriginPatterns("*")
-            .withSockJS()
-            .setHttpMessageCacheSize(1000)
-            .setWebSocketEnabled(true)
-            .setHeartbeatTime(25000)
-            .setDisconnectDelay(5000)
-            .setSupressCors(true);
+                .setAllowedOrigins("http://localhost:8080")  // 明确允许前端开发服务器域名
+                .withSockJS()
+                .setClientLibraryUrl("https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js")
+                .setWebSocketEnabled(true)
+                .setSessionCookieNeeded(false);
+
+        // 添加一个额外的没有SockJS的端点，用于直接WebSocket连接测试
+        registry.addEndpoint("/ws/websocket")
+                .setAllowedOrigins("http://localhost:8080")
+                .setHandshakeHandler(new DefaultHandshakeHandler() {
+                    @Override
+                    protected Principal determineUser(ServerHttpRequest request, WebSocketHandler wsHandler, Map<String, Object> attributes) {
+                        log.info("WebSocket握手请求: {}", request.getURI());
+                        return super.determineUser(request, wsHandler, attributes);
+                    }
+                });
     }
 
     @Override
@@ -64,28 +79,25 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                    .setSendBufferSizeLimit(1024 * 1024)
                    .setSendTimeLimit(30000)
                    .setTimeToFirstMessage(60000);
-        
+
         registration.addDecoratorFactory(handler -> new WebSocketHandlerDecorator(handler) {
             @Override
             public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-                log.info("WebSocket连接已建立: ID={}, 远程地址={}", 
-                         session.getId(), 
+                log.info("WebSocket连接已建立: ID={}, 远程地址={}",
+                         session.getId(),
                          session.getRemoteAddress());
                 super.afterConnectionEstablished(session);
             }
         });
     }
 
-    @Override
-    public boolean configureMessageConverters(List<MessageConverter> messageConverters) {
+    @Bean
+    public MappingJackson2MessageConverter mappingJackson2MessageConverter() {
         MappingJackson2MessageConverter converter = new MappingJackson2MessageConverter();
         ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.configure(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        objectMapper.registerModule(new JavaTimeModule());
         converter.setObjectMapper(objectMapper);
-        messageConverters.add(converter);
-        
-        messageConverters.add(new org.springframework.messaging.converter.StringMessageConverter());
-        return false;
+        return converter;
     }
 
     @Override
@@ -97,10 +109,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
                 if (StompCommand.CONNECT.equals(accessor.getCommand())) {
                     log.info("处理WebSocket CONNECT命令");
-                    
+
                     // 尝试从多个来源获取认证信息
                     String token = null;
-                    
+
                     // 1. 尝试从Authorization头获取
                     List<String> authorization = accessor.getNativeHeader("Authorization");
                     if (authorization != null && !authorization.isEmpty()) {
@@ -110,7 +122,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             log.info("从Authorization头获取到token");
                         }
                     }
-                    
+
                     // 2. 如果没有从头获取到，尝试从Cookie获取
                     if (token == null) {
                         List<String> cookies = accessor.getNativeHeader("Cookie");
@@ -127,11 +139,12 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
                             }
                         }
                     }
-                    
+
                     // 3. 检查是否获取到token并验证
                     if (token != null) {
                         try {
                             // 这里应该使用你的JwtUtils工具类验证token
+                            JWTUtil.parseToken(token);
                             // 简化处理，假设token有效
                             UsernamePasswordAuthenticationToken auth =
                                 new UsernamePasswordAuthenticationToken("user", null, new ArrayList<>());
@@ -160,8 +173,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void handleWebSocketDisconnectListener(SessionDisconnectEvent event) {
         StompHeaderAccessor headerAccessor = StompHeaderAccessor.wrap(event.getMessage());
         String sessionId = headerAccessor.getSessionId();
-        log.info("WebSocket连接断开: {}, 状态码: {}", 
-                 sessionId, 
+        log.info("WebSocket连接断开: {}, 状态码: {}",
+                 sessionId,
                  event.getCloseStatus() != null ? event.getCloseStatus().getCode() : "未知");
     }
 }

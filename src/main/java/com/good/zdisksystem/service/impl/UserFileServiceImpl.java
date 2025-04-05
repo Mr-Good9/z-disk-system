@@ -358,6 +358,12 @@ public class UserFileServiceImpl implements UserFileService {
         if (file.getIsDeleted() == 1) {
             throw new CustomException(GlobalErrorCodeConstants.FILE_NOT_FOUND);
         }
+        
+        // 检查是否为文件夹
+        if (file.getIsFolder() == 1) {
+            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(), 
+                    "文件夹不支持直接下载");
+        }
 
         try {
             // 从MinIO下载文件
@@ -374,7 +380,8 @@ public class UserFileServiceImpl implements UserFileService {
             }
         } catch (Exception e) {
             log.error("文件下载失败", e);
-            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR);
+            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(),
+                    "文件下载失败: " + e.getMessage());
         }
     }
 
@@ -430,7 +437,8 @@ public class UserFileServiceImpl implements UserFileService {
     /**
      * 检查并获取文件信息
      */
-    private File checkAndGetFile(Long fileId) {
+    @Override
+    public File checkAndGetFile(Long fileId) {
         File file = fileMapper.selectById(fileId);
         if (file == null || file.getIsDeleted() == 1) {
             throw new CustomException(GlobalErrorCodeConstants.FILE_NOT_FOUND);
@@ -856,6 +864,36 @@ public class UserFileServiceImpl implements UserFileService {
             log.error("生成视频预览URL失败: {}", e.getMessage(), e);
             throw new CustomException(GlobalErrorCodeConstants.FILE_PREVIEW_ERROR.getCode(),
                     "生成视频预览URL失败: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public InputStream getFileInputStream(Long fileId) {
+        File file = checkAndGetFile(fileId);
+        // 检查文件是否存在
+        if (file.getIsDeleted() == 1) {
+            throw new CustomException(GlobalErrorCodeConstants.FILE_NOT_FOUND);
+        }
+        
+        // 检查是否为文件夹
+        if (file.getIsFolder() == 1) {
+            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(), 
+                    "文件夹不支持直接下载");
+        }
+
+        try {
+            log.info("正在获取文件流: fileId={}, path={}", fileId, file.getPath());
+            // 从MinIO获取文件流
+            return minioClient.getObject(
+                    GetObjectArgs.builder()
+                            .bucket(bucket)
+                            .object(file.getPath())
+                            .build()
+            );
+        } catch (Exception e) {
+            log.error("获取文件流失败: {}", e.getMessage(), e);
+            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(),
+                    "获取文件流失败: " + e.getMessage());
         }
     }
 }

@@ -46,8 +46,9 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .cors().and()
             .csrf().disable()
             .authorizeRequests()
-            // 允许 WebSocket 端点访问
-            .antMatchers("/ws/**", "/ws").permitAll()
+            // 允许WebSocket相关端点
+            .antMatchers("/ws/**", "/sockjs-info").permitAll()
+            .antMatchers("/api/websocket/**").permitAll()
             .antMatchers("/api/auth/**", "/api/health").permitAll()
             .anyRequest().authenticated()
             .and()

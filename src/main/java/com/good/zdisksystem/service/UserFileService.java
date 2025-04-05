@@ -7,6 +7,7 @@ import java.util.List;
 import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.entity.param.RecycleBinParam;
 import com.good.zdisksystem.entity.vo.UserFileVO;
+import java.io.InputStream;
 
 public interface UserFileService {
     /**
@@ -88,4 +89,18 @@ public interface UserFileService {
      * @return 视频预览URL
      */
     String getVideoPreviewUrl(Long fileId);
+
+    /**
+     * 检查并获取文件信息
+     * @param fileId 文件ID
+     * @return 文件信息
+     */
+    File checkAndGetFile(Long fileId);
+
+    /**
+     * 获取文件输入流
+     * @param fileId 文件ID
+     * @return 文件输入流
+     */
+    InputStream getFileInputStream(Long fileId);
 }

@@ -4,7 +4,10 @@ import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.utils.RequestUser;
 import com.good.zdisksystem.entity.model.ChatMessage;
 import com.good.zdisksystem.entity.model.ChatSession;
+import com.good.zdisksystem.entity.model.User;
+import com.good.zdisksystem.security.utils.JwtUtils;
 import com.good.zdisksystem.service.ChatService;
+import com.good.zdisksystem.utils.WSJwtUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -29,6 +32,7 @@ import static com.fasterxml.jackson.databind.type.LogicalType.Map;
 public class ChatController {
     private final ChatService chatService;
     private final SimpMessagingTemplate messagingTemplate;
+    private final WSJwtUtils wsJwtUtils;
     private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     @GetMapping("/sessions")
@@ -63,16 +67,32 @@ public class ChatController {
         message.setCreateTime(LocalDateTime.now());
         message.setStatus(0); // 0-未读
 
+        // 保存消息到数据库
         chatService.sendMessage(message);
 
-        // 通过WebSocket发送消息给接收者
-        messagingTemplate.convertAndSendToUser(
-            message.getToUserId().toString(),
-            "/queue/messages",
-            message
-        );
+        try {
+            // 创建一个用于WebSocket发送的新消息对象，避免循环引用
+            ChatMessage wsMessage = new ChatMessage();
+            wsMessage.setId(message.getId());
+            wsMessage.setFromUserId(message.getFromUserId());
+            wsMessage.setToUserId(message.getToUserId());
+            wsMessage.setContent(message.getContent());
+            wsMessage.setType(message.getType());
+            wsMessage.setStatus(message.getStatus());
+            wsMessage.setCreateTime(message.getCreateTime());
 
-        return CommonResult.success(null);
+            // 通过WebSocket发送消息给接收者
+            messagingTemplate.convertAndSendToUser(
+                message.getToUserId().toString(),
+                "/queue/messages",
+                wsMessage
+            );
+
+            return CommonResult.success(null);
+        } catch (Exception e) {
+            log.error("发送WebSocket消息失败", e);
+            return CommonResult.success(null); // 返回成功，因为消息已保存到数据库
+        }
     }
 
     @GetMapping("/unread/count")
@@ -101,14 +121,22 @@ public class ChatController {
             log.warn("Principal is null in updateStatus");
             return;
         }
-        
+
         try {
-            Long userId = Long.parseLong(principal.getName());
+            String name = principal.getName();
+            log.info("用户状态更新: {}", name);
+            User user = wsJwtUtils.parseToken(name);
+
+            if (user == null) {
+                log.warn("解析用户信息失败: {}", name);
+                return;
+            }
+            Long userId = Long.parseLong(String.valueOf(user.getId()));
             Map<String, Object> statusMessage = new HashMap<>();
             statusMessage.put("userId", userId);
             statusMessage.put("online", true);
             statusMessage.put("timestamp", LocalDateTime.now());
-            
+
             // 广播用户上线消息
             messagingTemplate.convertAndSend("/topic/status", statusMessage);
             log.info("用户上线状态已广播: {}", userId);
@@ -123,19 +151,19 @@ public class ChatController {
     public void handleSessionDisconnect(SessionDisconnectEvent event) {
         StompHeaderAccessor sha = StompHeaderAccessor.wrap(event.getMessage());
         Principal principal = sha.getUser();
-        
+
         if (principal == null) {
             log.warn("Principal is null in handleSessionDisconnect");
             return;
         }
-        
+
         try {
             String userId = principal.getName();
             Map<String, Object> statusMessage = new HashMap<>();
             statusMessage.put("userId", userId);
             statusMessage.put("online", false);
             statusMessage.put("timestamp", LocalDateTime.now());
-            
+
             // 广播用户下线消息
             messagingTemplate.convertAndSend("/topic/status", statusMessage);
             log.info("用户下线状态已广播: {}", userId);
