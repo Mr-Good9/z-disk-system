@@ -222,7 +222,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             if (existUser != null) {
                 throw new CustomException(GlobalErrorCodeConstants.PHONE_REGISTERED);
             }
-            // TODO 获取手机号验证码 - 待删除
             String cachedCode = authUserCache.getCaptcha(param.getPhone());
             if (param.getVerifyCode() == null || !param.getVerifyCode().equals(cachedCode)) {
                 throw new CustomException(GlobalErrorCodeConstants.CAPTCHA_ERROR);

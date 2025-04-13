@@ -5,6 +5,8 @@ import com.good.zdisksystem.entity.model.File;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
+import java.util.List;
+
 @Mapper
 public interface FileMapper extends BaseMapper<File> {
 
@@ -31,4 +33,20 @@ public interface FileMapper extends BaseMapper<File> {
      */
 //    @Select("SELECT COUNT(*) FROM file WHERE status = 1")
     Long countDeletedFiles();
+
+
+    /**
+     * 查询所有共享文件
+     * @return 共享文件列表
+     */
+    @Select("SELECT * FROM file WHERE is_shared = 1 AND is_deleted = 0 AND is_folder = 0")
+    List<File> findSharedFiles();
+
+    /**
+     * 根据用户ID查询文件
+     * @param userId
+     * @return
+     */
+    @Select("SELECT * FROM file WHERE user_id = #{userId} AND is_deleted = 0 AND is_folder = 0")
+    List<File> findByUserId(Long userId);
 }

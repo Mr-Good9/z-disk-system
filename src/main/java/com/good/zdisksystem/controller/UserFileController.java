@@ -1,12 +1,14 @@
 package com.good.zdisksystem.controller;
 
 import com.good.zdisksystem.common.result.CommonResult;
+import com.good.zdisksystem.common.utils.RequestUser;
 import com.good.zdisksystem.entity.model.File;
 import com.good.zdisksystem.entity.param.CreateFolderParam;
 import com.good.zdisksystem.entity.param.FileUploadParam;
 import com.good.zdisksystem.entity.param.MoveFileParam;
 import com.good.zdisksystem.entity.param.RenameFileParam;
 import com.good.zdisksystem.entity.vo.FileTreeVo;
+import com.good.zdisksystem.mapper.FileMapper;
 import com.good.zdisksystem.service.UserFileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +21,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URLEncoder;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 
 @RestController
 @RequestMapping("/api/file")
@@ -27,6 +33,8 @@ import java.util.List;
 public class UserFileController {
 
     private final UserFileService userFileService;
+
+    private final FileMapper fileMapper;
 
     /**
      * 上传文件
@@ -248,5 +256,53 @@ public class UserFileController {
     public CommonResult<String> getVideoPreviewUrl(@PathVariable Long fileId) {
         String previewUrl = userFileService.getVideoPreviewUrl(fileId);
         return CommonResult.success(previewUrl);
+    }
+
+    /**
+     * 获取用户文件统计信息
+     */
+    @GetMapping("/statistics")
+    public CommonResult<Map<String, Object>> getFileStatistics() {
+        Long userId = RequestUser.getUser().getId();
+        // 根据用户ID统计不同类型文件数量
+        Map<String, Object> statistics = new HashMap<>();
+
+        // 查询文档类型文件数量
+        LambdaQueryWrapper<File> docQuery = new LambdaQueryWrapper<>();
+        docQuery.eq(File::getUserId, userId)
+                .eq(File::getIsDeleted, 0)
+                .in(File::getType, "doc", "docx", "pdf", "txt", "xls", "xlsx", "ppt", "pptx");
+        long docCount = fileMapper.selectCount(docQuery);
+        statistics.put("docCount", docCount);
+
+        // 查询图片类型文件数量
+        LambdaQueryWrapper<File> imageQuery = new LambdaQueryWrapper<>();
+        imageQuery.eq(File::getUserId, userId)
+                 .eq(File::getIsDeleted, 0)
+                 .in(File::getType, "jpg", "jpeg", "png", "gif", "bmp");
+        long imageCount = fileMapper.selectCount(imageQuery);
+        statistics.put("imageCount", imageCount);
+
+        // 查询视频类型文件数量
+        LambdaQueryWrapper<File> videoQuery = new LambdaQueryWrapper<>();
+        videoQuery.eq(File::getUserId, userId)
+                 .eq(File::getIsDeleted, 0)
+                 .in(File::getType, "mp4", "avi", "mov", "wmv", "flv");
+        long videoCount = fileMapper.selectCount(videoQuery);
+        statistics.put("videoCount", videoCount);
+
+        // 查询其他类型文件数量(不包括上述类型和文件夹)
+        LambdaQueryWrapper<File> otherQuery = new LambdaQueryWrapper<>();
+        otherQuery.eq(File::getUserId, userId)
+                 .eq(File::getIsDeleted, 0)
+                 .eq(File::getIsFolder, 0)
+                 .notIn(File::getType,
+                       "doc", "docx", "pdf", "txt", "xls", "xlsx", "ppt", "pptx",
+                       "jpg", "jpeg", "png", "gif", "bmp",
+                       "mp4", "avi", "mov", "wmv", "flv");
+        long otherCount = fileMapper.selectCount(otherQuery);
+        statistics.put("otherCount", otherCount);
+
+        return CommonResult.success(statistics);
     }
 }

@@ -10,6 +10,7 @@ import com.good.zdisksystem.entity.model.FileShare;
 import com.good.zdisksystem.entity.model.User;
 import com.good.zdisksystem.entity.param.FileQueryParam;
 import com.good.zdisksystem.entity.vo.FileStatisticsVO;
+import com.good.zdisksystem.entity.vo.ShareFileVO;
 import com.good.zdisksystem.entity.vo.StorageUsageVO;
 import com.good.zdisksystem.mapper.FileMapper;
 import com.good.zdisksystem.entity.vo.FileVO;
@@ -24,12 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
-import java.util.UUID;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Formatter;
 import java.time.format.DateTimeFormatter;
 import java.io.IOException;
 import io.minio.CopyObjectArgs;
@@ -322,26 +320,26 @@ public class FileServiceImpl implements FileService {
     private FileVO convertToFileVO(File file) {
         FileVO vo = new FileVO();
         BeanUtils.copyProperties(file, vo);
-        
+
         // 设置共享状态
         vo.setIsShared(file.getIsShared() == 1);
-        
+
         // 获取所有者信息
         User owner = userService.getByUserId(file.getUserId());
         if (owner != null) {
             vo.setOwnerName(owner.getNickname() != null ? owner.getNickname() : owner.getUsername());
             vo.setOwner(owner.getUsername());
         }
-        
+
         // 格式化时间
         if (file.getCreateTime() != null) {
             vo.setCreateTimeStr(formatDateTime(file.getCreateTime()));
         }
-        
+
         if (file.getUpdateTime() != null) {
             vo.setUpdateTimeStr(formatDateTime(file.getUpdateTime()));
         }
-        
+
         return vo;
     }
 
@@ -358,5 +356,190 @@ public class FileServiceImpl implements FileService {
             return null;
         }
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    }
+
+    // 添加缓存，但移除缓存以确保每次推荐都是新的
+    // @Cacheable(value = "fileRecommendations", key = "#userId", unless = "#result.isEmpty()")
+    @Override
+    public List<FileVO> getRecommendedShares(Long userId) {
+        // 1. 获取用户的文件类型偏好
+        Map<String, Integer> userFileTypePreferences = analyzeUserFileTypePreferences(userId);
+
+        // 2. 获取用户最近访问文件的关键词
+        List<String> userInterestKeywords = extractUserInterestKeywords(userId);
+
+        // 3. 基于用户偏好查找共享文件并添加随机因素
+        List<File> recommendedFiles = findRecommendedSharesWithRandomness(userId, userFileTypePreferences, userInterestKeywords);
+
+        // 4. 转换为VO对象并添加随机化的推荐理由
+        return convertToVOWithRandomReason(recommendedFiles, userFileTypePreferences, userInterestKeywords);
+    }
+
+    private Map<String, Integer> analyzeUserFileTypePreferences(Long userId) {
+        // 分析用户的文件类型偏好
+        Map<String, Integer> preferences = new HashMap<>();
+
+        List<File> userFiles = fileMapper.findByUserId(userId);
+        for (File file : userFiles) {
+            String type = file.getType();
+            if (type != null && !type.isEmpty()) {
+                preferences.put(type, preferences.getOrDefault(type, 0) + 1);
+            }
+        }
+
+        return preferences;
+    }
+
+    private List<String> extractUserInterestKeywords(Long userId) {
+        // 提取用户兴趣关键词
+        List<String> keywords = new ArrayList<>();
+
+        // 获取用户文件名中的关键词
+        List<File> userFiles = fileMapper.findByUserId(userId);
+        for (File file : userFiles) {
+            String[] words = file.getName().split("[\\s_\\-.]");
+            for (String word : words) {
+                if (word.length() > 2) {  // 忽略太短的词
+                    keywords.add(word.toLowerCase());
+                }
+            }
+        }
+
+        return keywords;
+    }
+
+    private List<File> findRecommendedSharesWithRandomness(Long userId, Map<String, Integer> preferences, List<String> keywords) {
+        // 查找所有共享文件 (is_shared = 1)
+        List<File> allSharedFiles = fileMapper.findSharedFiles();
+        // 如果没有共享文件，返回空列表
+        if (allSharedFiles.isEmpty()) {
+            return new ArrayList<>();
+        }
+        // 简单推荐算法：根据文件类型和关键词匹配度排序，并添加随机因素
+        Map<File, Double> fileScores = new HashMap<>();
+        for (File file : allSharedFiles) {
+            // 跳过用户自己的文件
+            if (file.getUserId().equals(userId)) {
+                continue;
+            }
+            // 计算文件类型偏好匹配分
+            double typeScore = preferences.getOrDefault(file.getType(), 0) * 0.5;
+            // 计算关键词匹配分
+            double keywordScore = 0;
+            String fileName = file.getName().toLowerCase();
+            for (String keyword : keywords) {
+                if (fileName.contains(keyword)) {
+                    keywordScore += 0.3;
+                }
+            }
+            // 添加文件新鲜度因素
+            double freshnessScore = 0;
+            if (file.getCreateTime() != null) {
+                // 如果文件是最近30天内创建的，给予额外加分
+                long daysAgo = java.time.Duration.between(
+                    file.getCreateTime(),
+                    LocalDateTime.now()
+                ).toDays();
+
+                if (daysAgo < 30) {
+                    freshnessScore = 0.1 * (1 - (daysAgo / 30.0));
+                }
+            }
+            // 添加随机因素 (0-30%的随机波动)
+            double randomFactor = 0.7 + (Math.random() * 0.6); // 0.7到1.3之间的随机值
+            // 计算总分 - 加入随机因子
+            double totalScore = (typeScore + keywordScore + freshnessScore) * randomFactor;
+            fileScores.put(file, totalScore);
+        }
+        // 获取候选集 - 获取多一些的结果用于随机选择
+        List<File> candidateFiles = fileScores.entrySet().stream()
+                .sorted(Map.Entry.<File, Double>comparingByValue().reversed())
+                .limit(Math.min(20, allSharedFiles.size())) // 获取前20个或全部
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+        // 最终随机选择10个结果
+        List<File> finalSelection = new ArrayList<>();
+        int resultSize = Math.min(10, candidateFiles.size());
+        // 确保结果集有一定的随机性
+        // 先选30%的高分结果以保证质量
+        int topPicks = (int) Math.ceil(resultSize * 0.3);
+        for (int i = 0; i < Math.min(topPicks, candidateFiles.size()); i++) {
+            finalSelection.add(candidateFiles.get(i));
+        }
+        // 剩余的从候选集中随机选择
+        if (candidateFiles.size() > topPicks) {
+            List<File> remainingCandidates = new ArrayList<>(candidateFiles.subList(topPicks, candidateFiles.size()));
+            Collections.shuffle(remainingCandidates);
+            int remaining = resultSize - finalSelection.size();
+            for (int i = 0; i < Math.min(remaining, remainingCandidates.size()); i++) {
+                finalSelection.add(remainingCandidates.get(i));
+            }
+        }
+        // 最后打乱结果顺序
+        Collections.shuffle(finalSelection);
+        return finalSelection;
+    }
+
+    private List<FileVO> convertToVOWithRandomReason(List<File> files,
+                                                    Map<String, Integer> preferences,
+                                                    List<String> keywords) {
+        List<FileVO> vos = new ArrayList<>();
+
+        // 多样化的推荐理由模板
+        List<String> typeReasonTemplates = Arrays.asList(
+            "基于您对{type}类型文件的偏好推荐",
+            "您经常使用{type}文件，您可能对这个感兴趣",
+            "与您收藏的{type}文件类似",
+            "为{type}爱好者推荐的精选内容"
+        );
+
+        List<String> generalReasonTemplates = Arrays.asList(
+            "热门共享文件",
+            "最近很多用户都在关注",
+            "本周热门推荐",
+            "高质量的精选内容",
+            "值得一看的共享资源"
+        );
+
+        for (File file : files) {
+            FileVO vo = convertToVO(file);  // 基本转换
+
+            // 随机选择推荐理由类型
+            double reasonType = Math.random();
+            String reason = "";
+            String fileType = file.getType();
+
+            if (reasonType < 0.4 && preferences.containsKey(fileType) && preferences.get(fileType) > 2) {
+                // 类型偏好理由 (40%概率)
+                int templateIndex = (int)(Math.random() * typeReasonTemplates.size());
+                reason = typeReasonTemplates.get(templateIndex).replace("{type}", fileType);
+            }
+            else if (reasonType < 0.8) {
+                // 关键词匹配理由 (40%概率)
+                String fileName = file.getName().toLowerCase();
+                List<String> matchedKeywords = keywords.stream()
+                        .filter(kw -> fileName.contains(kw.toLowerCase()))
+                        .collect(Collectors.toList());
+
+                if (!matchedKeywords.isEmpty()) {
+                    // 随机选择一个匹配的关键词
+                    String keyword = matchedKeywords.get((int)(Math.random() * matchedKeywords.size()));
+                } else {
+                    // 如果没有匹配的关键词，使用通用理由
+                    int templateIndex = (int)(Math.random() * generalReasonTemplates.size());
+                    reason = generalReasonTemplates.get(templateIndex);
+                }
+            }
+            else {
+                // 通用理由 (20%概率)
+                int templateIndex = (int)(Math.random() * generalReasonTemplates.size());
+                reason = generalReasonTemplates.get(templateIndex);
+            }
+
+            vo.setReason(reason);
+            vos.add(vo);
+        }
+
+        return vos;
     }
 }

@@ -20,4 +20,5 @@ public class FileVO {
     private String ownerName;
     private String createTimeStr;
     private String updateTimeStr;
+    private String reason;
 }

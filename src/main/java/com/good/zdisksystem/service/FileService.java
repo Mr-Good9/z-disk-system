@@ -3,6 +3,7 @@ package com.good.zdisksystem.service;
 import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.entity.model.File;
 import com.good.zdisksystem.entity.param.FileQueryParam;
+import com.good.zdisksystem.entity.vo.ShareFileVO;
 import com.good.zdisksystem.entity.vo.StorageUsageVO;
 import com.good.zdisksystem.entity.vo.FileVO;
 import com.good.zdisksystem.entity.vo.FileStatisticsVO;
@@ -90,4 +91,11 @@ public interface FileService {
      * @return 是否复制成功
      */
     boolean copyFileTo(Long fileId, Long userId);
+
+    /**
+     * 获取推荐共享文件
+     * @param userId
+     * @return
+     */
+    List<FileVO> getRecommendedShares(Long userId);
 }

@@ -358,10 +358,10 @@ public class UserFileServiceImpl implements UserFileService {
         if (file.getIsDeleted() == 1) {
             throw new CustomException(GlobalErrorCodeConstants.FILE_NOT_FOUND);
         }
-        
+
         // 检查是否为文件夹
         if (file.getIsFolder() == 1) {
-            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(), 
+            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(),
                     "文件夹不支持直接下载");
         }
 
@@ -874,10 +874,10 @@ public class UserFileServiceImpl implements UserFileService {
         if (file.getIsDeleted() == 1) {
             throw new CustomException(GlobalErrorCodeConstants.FILE_NOT_FOUND);
         }
-        
+
         // 检查是否为文件夹
         if (file.getIsFolder() == 1) {
-            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(), 
+            throw new CustomException(GlobalErrorCodeConstants.FILE_DOWNLOAD_ERROR.getCode(),
                     "文件夹不支持直接下载");
         }
 
