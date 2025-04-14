@@ -56,13 +56,11 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     @Override
     public void addFriendRequest(AddFriendParam param) {
         Long userId = RequestUser.getUser().getId();
-
         // 检查是否已经是好友
         UserFriendVO existingFriend = userFriendMapper.getFriendDetail(userId, param.getFriendId());
         if (existingFriend != null) {
             throw new CustomException("该用户已经是你的好友");
         }
-
         // 检查是否已经发送过请求
         LambdaQueryWrapper<FriendRequest> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(FriendRequest::getFromUserId, userId)
@@ -71,14 +69,12 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
         if (friendRequestMapper.selectCount(wrapper) > 0) {
             throw new CustomException("已经发送过好友请求，请等待对方处理");
         }
-
         // 创建好友请求
         FriendRequest request = new FriendRequest();
         request.setFromUserId(userId);
         request.setToUserId(param.getFriendId());
         request.setRemark(param.getRemark());
         request.setStatus(0);
-
         friendRequestMapper.insert(request);
         log.info("发送好友请求: fromUserId={}, toUserId={}", userId, param.getFriendId());
     }
@@ -99,22 +95,18 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     @Transactional(rollbackFor = Exception.class)
     public void handleFriendRequest(Long requestId, Boolean accept) {
         Long userId = RequestUser.getUser().getId();
-
         // 获取请求详情
         FriendRequestVO request = friendRequestMapper.getRequestDetail(requestId);
         if (request == null) {
             throw new CustomException("好友请求不存在");
         }
-
         // 检查权限
         if (!userId.equals(request.getToUserId())) {
             throw new CustomException("无权处理该请求");
         }
-
         // 更新请求状态
         int status = accept ? 1 : 2;
         friendRequestMapper.updateRequestStatus(requestId, status);
-
         if (accept) {
             // 互相添加好友
             addFriendRelation(userId, request.getFromUserId());
@@ -140,15 +132,16 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
     public void deleteFriend(Long friendId) {
         Long userId = RequestUser.getUser().getId();
 
-        // 更新好友状态为已删除
+        Friend currentRecord = this.lambdaQuery().eq(Friend::getId, friendId).one();
+        // 更新当前记录
+        this.lambdaUpdate().eq(Friend::getId, friendId).set(Friend::getStatus, 0).update();
+        // 更新相关对方的好友记录
         LambdaQueryWrapper<Friend> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Friend::getUserId, userId)
-                .eq(Friend::getFriendId, friendId);
-
+        wrapper.eq(Friend::getUserId, currentRecord.getFriendId())
+                .eq(Friend::getFriendId, currentRecord.getUserId());
         Friend friend = new Friend();
         friend.setStatus(0);
         userFriendMapper.update(friend, wrapper);
-
         log.info("删除好友关系: userId={}, friendId={}", userId, friendId);
     }
 
@@ -195,7 +188,7 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
                 .orderByAsc(FriendGroup::getSort)
         );
     }
-    
+
     @Override
     public List<Friend> getFriendsByGroup(Long userId, Long groupId) {
         // 首先验证分组是否存在且属于该用户
@@ -204,11 +197,11 @@ public class FriendServiceImpl extends ServiceImpl<FriendMapper, Friend> impleme
                 .eq(FriendGroup::getId, groupId)
                 .eq(FriendGroup::getUserId, userId)
         );
-        
+
         if (group == null) {
             throw new CustomException("好友分组不存在");
         }
-        
+
         // 查询分组下的好友列表
         return friendMapper.selectList(
             new LambdaQueryWrapper<Friend>()

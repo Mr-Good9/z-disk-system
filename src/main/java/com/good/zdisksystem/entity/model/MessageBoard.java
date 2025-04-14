@@ -12,6 +12,7 @@ import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
+import org.springframework.data.annotation.Transient;
 
 /**
  * <p>
@@ -57,5 +58,15 @@ public class MessageBoard implements Serializable {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 
+    @Transient
+    @TableField(exist = false)
+    private String username;
 
+    @TableField(exist = false)
+    @Transient
+    private String nickname;
+
+    @TableField(exist = false)
+    @Transient
+    private String avatar;
 }

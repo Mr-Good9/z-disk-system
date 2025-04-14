@@ -66,10 +66,8 @@ public class ChatController {
         message.setFromUserId(userId);
         message.setCreateTime(LocalDateTime.now());
         message.setStatus(0); // 0-未读
-
         // 保存消息到数据库
         chatService.sendMessage(message);
-
         try {
             // 创建一个用于WebSocket发送的新消息对象，避免循环引用
             ChatMessage wsMessage = new ChatMessage();
@@ -87,7 +85,6 @@ public class ChatController {
                 "/queue/messages",
                 wsMessage
             );
-
             return CommonResult.success(null);
         } catch (Exception e) {
             log.error("发送WebSocket消息失败", e);

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.good.zdisksystem.mapper.MessageBoardMapper">
+
+    <resultMap id="messageBoardMap" type="com.good.zdisksystem.entity.model.MessageBoard">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="content" column="content"/>
+        <result property="parentId" column="parent_id"/>
+        <result property="likeCount" column="like_count"/>
+        <result property="status" column="status"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="username" column="username"/>
+        <result property="nickname" column="nickname"/>
+        <result property="avatar" column="avatar"/>
+    </resultMap>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO message_board (user_id, content, parent_id)
+        VALUES (#{userId}, #{content}, #{parentId})
+    </insert>
+
+    <update id="update">
+        UPDATE message_board
+        <set>
+            <if test="content != null">content = #{content},</if>
+            <if test="status != null">status = #{status},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+    </update>
+
+    <select id="selectById" resultMap="messageBoardMap">
+        SELECT m.*, u.username, u.nickname, u.avatar
+        FROM message_board m
+                 LEFT JOIN user u ON m.user_id = u.id
+        WHERE m.id = #{id} AND m.status = 1
+    </select>
+
+    <select id="selectList" resultMap="messageBoardMap">
+        SELECT m.*, u.username, u.nickname, u.avatar
+        FROM message_board m
+        LEFT JOIN user u ON m.user_id = u.id
+        WHERE m.parent_id = 0 AND m.status = 1
+        <if test="order == 'hot'">
+            ORDER BY m.like_count DESC, m.create_time DESC
+        </if>
+        <if test="order == 'latest' or order == null">
+            ORDER BY m.create_time DESC
+        </if>
+        LIMIT #{offset}, #{limit}
+    </select>
+
+    <select id="selectReplies" resultMap="messageBoardMap">
+        SELECT m.*, u.username, u.nickname, u.avatar
+        FROM message_board m
+                 LEFT JOIN user u ON m.user_id = u.id
+        WHERE m.parent_id = #{parentId} AND m.status = 1
+        ORDER BY m.create_time ASC
+    </select>
+
+    <select id="countTotal" resultType="int">
+        SELECT COUNT(*) FROM message_board WHERE parent_id = 0 AND status = 1
+    </select>
+
+    <update id="increaseLikeCount">
+        UPDATE message_board SET like_count = like_count + 1 WHERE id = #{id}
+    </update>
+
+    <update id="decreaseLikeCount">
+        UPDATE message_board SET like_count = GREATEST(like_count - 1, 0) WHERE id = #{id}
+    </update>
+
+    <update id="deleteById">
+        UPDATE message_board SET status = 0, update_time = NOW() WHERE id = #{id}
+    </update>
+
+</mapper>
