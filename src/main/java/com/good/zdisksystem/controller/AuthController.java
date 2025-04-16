@@ -1,6 +1,7 @@
 package com.good.zdisksystem.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.cache.AuthUserCache;
 import com.good.zdisksystem.common.exception.CustomException;
 import com.good.zdisksystem.common.result.CommonResult;
@@ -79,6 +80,7 @@ public class AuthController {
      * @return
      */
     @PostMapping("/login")
+    @OperationLogger(module = "登录", action = "登录", detail = "用户登录")
     public CommonResult<AuthResponse> login(@RequestBody @Validated LoginRequest loginRequest) {
         // 验证验证码
         String captcha = authUserCache.getCaptcha(loginRequest.getUuid());
@@ -136,6 +138,7 @@ public class AuthController {
      * @return
      */
     @PostMapping("/logout")
+    @OperationLogger(module = "登录", action = "退出登录", detail = "用户退出登录")
     public CommonResult<?> logout() {
         User user = RequestUser.getUser();
         if (user == null) {

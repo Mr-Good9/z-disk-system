@@ -49,6 +49,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             // 允许WebSocket相关端点
             .antMatchers("/ws/**", "/sockjs-info").permitAll()
             .antMatchers("/api/websocket/**").permitAll()
+            .antMatchers("/api/admin/operation-logs/**").permitAll()
             .antMatchers("/api/auth/**", "/api/health").permitAll()
             .anyRequest().authenticated()
             .and()

@@ -1,5 +1,6 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.utils.RequestUser;
 import com.good.zdisksystem.entity.model.File;
@@ -40,6 +41,7 @@ public class UserFileController {
      * 上传文件
      */
     @PostMapping("/upload")
+    @OperationLogger(module = "文件", action = "新增", detail = "上传文件")
     public CommonResult<File> uploadFile(@Valid FileUploadParam param) {
         File file = userFileService.uploadFile(param.getFile(), param.getParentId());
         return CommonResult.success(file);
@@ -49,6 +51,7 @@ public class UserFileController {
      * 创建文件夹
      */
     @PostMapping("/folder")
+    @OperationLogger(module = "文件", action = "新增", detail = "创建文件夹")
     public CommonResult<File> createFolder(@Valid @RequestBody CreateFolderParam param) {
         File folder = userFileService.createFolder(param.getName(), param.getParentId());
         return CommonResult.success(folder);
@@ -76,6 +79,7 @@ public class UserFileController {
      * 重命名文件
      */
     @PutMapping("/{fileId}/name")
+    @OperationLogger(module = "文件", action = "更新", detail = "重命名文件")
     public CommonResult<Void> renameFile(
             @PathVariable Long fileId,
             @Valid @RequestBody RenameFileParam param) {
@@ -87,6 +91,7 @@ public class UserFileController {
      * 移动文件
      */
     @PutMapping("/{fileId}/move")
+    @OperationLogger(module = "文件", action = "更新", detail = "移动文件")
     public CommonResult<Void> moveFile(
             @PathVariable Long fileId,
             @Valid @RequestBody MoveFileParam param) {
@@ -98,6 +103,7 @@ public class UserFileController {
      * 删除文件
      */
     @DeleteMapping("/{fileId}")
+    @OperationLogger(module = "文件", action = "删除", detail = "删除文件")
     public CommonResult<Void> deleteFile(@PathVariable Long fileId) {
         userFileService.deleteFile(fileId);
         return CommonResult.success(null);
@@ -107,6 +113,7 @@ public class UserFileController {
      * 下载文件
      */
     @GetMapping("/{fileId}/download")
+    @OperationLogger(module = "文件", action = "下载", detail = "下载文件")
     public void downloadFile(
             @PathVariable Long fileId,
             HttpServletResponse response) {

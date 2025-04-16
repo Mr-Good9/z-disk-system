@@ -1,5 +1,6 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.common.utils.RequestUser;
@@ -29,6 +30,7 @@ public class FileShareController {
 
     @ApiOperation("设置文件共享状态")
     @PostMapping("/{fileId}/toggle")
+    @OperationLogger(module = "文件", action = "更新", detail = "设置文件共享状态")
     public CommonResult<Boolean> toggleFileShareStatus(
             @PathVariable Long fileId,
             @RequestParam(defaultValue = "true") boolean shared) {
@@ -55,6 +57,7 @@ public class FileShareController {
 
     @ApiOperation("保存共享文件到我的文件")
     @PostMapping("/{fileId}/save")
+    @OperationLogger(module = "文件", action = "新增", detail = "保存共享文件到我的文件")
     public CommonResult<Boolean> saveSharedFile(@PathVariable Long fileId) {
         // 获取当前用户
         Long userId = RequestUser.getUser().getId();

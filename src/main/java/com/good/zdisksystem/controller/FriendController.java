@@ -1,5 +1,6 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.utils.RequestUser;
 import com.good.zdisksystem.entity.model.Friend;
@@ -48,6 +49,7 @@ public class FriendController {
 
     @ApiOperation("发送好友请求")
     @PostMapping("/request")
+    @OperationLogger(module = "用户", action = "新增", detail = "发送好友请求")
     public CommonResult<Void> addFriendRequest(@Valid @RequestBody AddFriendParam param) {
         friendService.addFriendRequest(param);
         return CommonResult.success(null);
@@ -67,6 +69,7 @@ public class FriendController {
 
     @ApiOperation("处理好友请求")
     @PostMapping("/request/{requestId}")
+    @OperationLogger(module = "用户", action = "更新", detail = "处理好友请求")
     public CommonResult<Void> handleFriendRequest(
             @PathVariable Long requestId,
             @RequestParam Boolean accept) {
@@ -76,6 +79,7 @@ public class FriendController {
 
     @ApiOperation("删除好友")
     @DeleteMapping("/{friendId}")
+    @OperationLogger(module = "用户", action = "删除", detail = "删除好友")
     public CommonResult<Void> deleteFriend(@PathVariable Long friendId) {
         friendService.deleteFriend(friendId);
         return CommonResult.success(null);
@@ -83,6 +87,7 @@ public class FriendController {
 
     @ApiOperation("修改好友备注")
     @PutMapping("/{friendId}/remark")
+    @OperationLogger(module = "用户", action = "更新", detail = "修改好友备注")
     public CommonResult<Void> updateFriendRemark(
             @PathVariable Long friendId,
             @RequestParam String remark) {
@@ -92,6 +97,7 @@ public class FriendController {
 
     @ApiOperation("移动好友分组")
     @PutMapping("/{friendId}/group")
+    @OperationLogger(module = "用户", action = "更新", detail = "移动好友分组")
     public CommonResult<Void> moveFriendGroup(
             @PathVariable Long friendId,
             @RequestParam Long groupId) {
@@ -115,12 +121,14 @@ public class FriendController {
 
     @ApiOperation("创建好友分组")
     @PostMapping("/group")
+    @OperationLogger(module = "用户", action = "新增", detail = "创建好友分组")
     public CommonResult<FriendGroup> createGroup(@RequestParam String name) {
         return CommonResult.success(friendGroupService.createGroup(name));
     }
 
     @ApiOperation("更新分组名称")
     @PutMapping("/group/{groupId}/name")
+    @OperationLogger(module = "用户", action = "更新", detail = "更新分组名称")
     public CommonResult<Void> updateGroupName(
             @PathVariable Long groupId,
             @RequestParam String newName) {
@@ -130,6 +138,7 @@ public class FriendController {
 
     @ApiOperation("更新分组排序")
     @PutMapping("/group/{groupId}/sort")
+    @OperationLogger(module = "用户", action = "更新", detail = "更新分组排序")
     public CommonResult<Void> updateGroupSort(
             @PathVariable Long groupId,
             @RequestParam Integer sort) {
@@ -139,6 +148,7 @@ public class FriendController {
 
     @ApiOperation("删除好友分组")
     @DeleteMapping("/group/{groupId}")
+    @OperationLogger(module = "用户", action = "删除", detail = "删除好友分组")
     public CommonResult<Void> deleteGroup(@PathVariable Long groupId) {
         friendGroupService.deleteGroup(groupId);
         return CommonResult.success(null);

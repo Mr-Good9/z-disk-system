@@ -1,5 +1,6 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.common.utils.RequestUser;
@@ -46,6 +47,7 @@ public class MessageBoardController {
      * 发布留言
      */
     @PostMapping("/add")
+    @OperationLogger(module = "留言", action = "新增", detail = "发布留言")
     public CommonResult<MessageBoardDTO> addMessage(@RequestBody @Validated MessageBoardRequestDTO requestDTO) {
         Long userId = RequestUser.getUser().getId();
         MessageBoardDTO message = messageBoardService.addMessage(userId, requestDTO);
@@ -85,6 +87,7 @@ public class MessageBoardController {
      * 删除留言
      */
     @DeleteMapping("/{messageId}")
+    @OperationLogger(module = "留言", action = "删除", detail = "删除留言")
     public CommonResult<Boolean> deleteMessage(@PathVariable Long messageId) {
         Long userId = RequestUser.getUser().getId();
         boolean success = messageBoardService.deleteMessage(userId, messageId);

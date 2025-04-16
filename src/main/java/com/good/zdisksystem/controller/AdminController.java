@@ -1,5 +1,6 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.entity.param.UserQueryParam;
@@ -49,6 +50,7 @@ public class AdminController {
      * @return
      */
     @PutMapping("/users/{userId}/status")
+    @OperationLogger(module = "管理员", action = "更新", detail = "更新用户状态")
     public CommonResult<Void> updateUserStatus(@PathVariable Long userId, @RequestParam Integer status) {
         userService.updateUserStatus(userId, status);
         return CommonResult.success(null);
@@ -61,6 +63,7 @@ public class AdminController {
      * @return
      */
     @DeleteMapping("/users/{userId}")
+    @OperationLogger(module = "管理员", action = "删除", detail = "删除用户")
     public CommonResult<Void> deleteUser(@PathVariable Long userId) {
         userService.deleteUser(userId);
         return CommonResult.success(null);
@@ -75,6 +78,7 @@ public class AdminController {
      * @return
      */
     @PutMapping("/users/{userId}/password/reset")
+    @OperationLogger(module = "管理员", action = "更新", detail = "重置用户密码")
     public CommonResult<Void> resetUserPassword(@PathVariable Long userId, @RequestParam String newPassword) {
         userService.resetUserPassword(userId, newPassword);
         return CommonResult.success(null);
@@ -88,6 +92,7 @@ public class AdminController {
      * @return
      */
     @PutMapping("/users/{userId}/role")
+    @OperationLogger(module = "管理员", action = "更新", detail = "更新用户角色")
     public CommonResult<Void> updateUserRole(@PathVariable Long userId, @RequestParam String role) {
         userService.updateUserRole(userId, role);
         return CommonResult.success(null);
@@ -146,6 +151,7 @@ public class AdminController {
      * @return
      */
     @PutMapping("/users/{userId}")
+    @OperationLogger(module = "管理员", action = "更新", detail = "更新用户信息")
     public CommonResult<Void> updateUser(@PathVariable Long userId, @RequestBody UserUpdateDTO userUpdate) {
         userService.updateUser(userId, userUpdate);
         return CommonResult.success(null);

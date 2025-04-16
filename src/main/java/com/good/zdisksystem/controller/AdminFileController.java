@@ -1,5 +1,6 @@
 package com.good.zdisksystem.controller;
 
+import com.good.zdisksystem.annotation.OperationLogger;
 import com.good.zdisksystem.common.exception.CustomException;
 import com.good.zdisksystem.common.result.CommonResult;
 import com.good.zdisksystem.common.result.PageResult;
@@ -52,6 +53,7 @@ public class AdminFileController {
      * 批量删除文件
      */
     @DeleteMapping("/batch")
+    @OperationLogger(module = "管理员", action = "删除", detail = "批量删除文件")
     public CommonResult<Void> batchDeleteFiles(@RequestBody List<Long> fileIds) {
         fileService.batchDeleteFiles(fileIds);
         return CommonResult.success(null);
@@ -67,6 +69,7 @@ public class AdminFileController {
     }
 
     @GetMapping("/{fileId}/download")
+    @OperationLogger(module = "管理员", action = "下载", detail = "下载文件")
     public void downloadFile(@PathVariable Long fileId, HttpServletResponse response) throws IOException {
         // 获取文件信息
         File file = fileService.getById(fileId);

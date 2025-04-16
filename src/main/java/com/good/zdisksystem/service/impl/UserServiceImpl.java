@@ -342,10 +342,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (param.getStatus() != null) {
             wrapper.eq(User::getStatus, param.getStatus());
         }
-//        if (StringUtils.hasText(param.getRole())) {
-//            wrapper.eq(User::getRole, param.getRole());
-//        }
-
         // 查询数据
         Page<User> page = userMapper.selectPage(new Page<>(param.getPageNum(), param.getPageSize()), wrapper);
 

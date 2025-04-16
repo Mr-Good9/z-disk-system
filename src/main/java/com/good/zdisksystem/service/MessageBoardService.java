@@ -3,7 +3,12 @@ package com.good.zdisksystem.service;
 
 import com.good.zdisksystem.common.result.PageResult;
 import com.good.zdisksystem.dto.MessageBoardDTO;
+import com.good.zdisksystem.dto.MessageBoardManagerDTO;
 import com.good.zdisksystem.dto.MessageBoardRequestDTO;
+import com.good.zdisksystem.entity.vo.MessageBoardDetailVO;
+import com.good.zdisksystem.entity.vo.MessageBoardManagerDetailVO;
+
+import java.util.List;
 
 public interface MessageBoardService {
 
@@ -27,4 +32,13 @@ public interface MessageBoardService {
 
     // 删除留言
     boolean deleteMessage(Long userId, Long messageId);
+
+    // 管理员留言板功能（新增）
+    PageResult<MessageBoardManagerDTO> getManagerMessageList(Integer pageNum, Integer pageSize, String keyword,
+                                             Integer status, String startTime, String endTime);
+    void adminDeleteMessage(Long id);
+    void adminRestoreMessage(Long id);
+    void adminBatchDelete(List<Long> ids);
+    void adminBatchRestore(List<Long> ids);
+    MessageBoardManagerDetailVO getManagerMessageDetail(Long id);
 }
