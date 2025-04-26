@@ -15,11 +15,13 @@ import com.good.zdisksystem.entity.vo.StorageUsageVO;
 import com.good.zdisksystem.mapper.FileMapper;
 import com.good.zdisksystem.entity.vo.FileVO;
 import com.good.zdisksystem.mapper.FileShareMapper;
+import com.good.zdisksystem.service.AIService;
 import com.good.zdisksystem.service.FileService;
 import com.good.zdisksystem.service.MinioService;
 import com.good.zdisksystem.service.UserService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,10 +31,11 @@ import java.util.*;
 import java.util.stream.Collectors;
 import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
-import java.io.IOException;
-import io.minio.CopyObjectArgs;
-import io.minio.CopySource;
+import lombok.extern.slf4j.Slf4j;
+import com.good.zdisksystem.service.AIRecommendService;
+import org.springframework.beans.factory.annotation.Qualifier;
 
+@Slf4j
 @Service
 public class FileServiceImpl implements FileService {
 
@@ -46,7 +49,18 @@ public class FileServiceImpl implements FileService {
     private UserService userService;
 
     @Autowired
+    private AIService aiService;
+
+    @Autowired
+    private RedisTemplate<String, Object> redisTemplate;
+
+    @Autowired
     private FileShareMapper fileShareMapper;
+
+    @Autowired
+    @Qualifier("zhipuAIRecommendService")  // 使用名称注入智普AI服务
+    private AIRecommendService aIRecommendService;
+
 
     @Override
     public FileStatisticsVO getFileStatistics() {
@@ -358,21 +372,64 @@ public class FileServiceImpl implements FileService {
         return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
     }
 
-    // 添加缓存，但移除缓存以确保每次推荐都是新的
-    // @Cacheable(value = "fileRecommendations", key = "#userId", unless = "#result.isEmpty()")
     @Override
     public List<FileVO> getRecommendedShares(Long userId) {
-        // 1. 获取用户的文件类型偏好
-        Map<String, Integer> userFileTypePreferences = analyzeUserFileTypePreferences(userId);
+        try {
+            // 1. 获取所有可供推荐的共享文件（排除用户自己的文件）
+            List<File> allSharedFiles = fileMapper.findSharedFiles().stream()
+                    .filter(file -> !file.getUserId().equals(userId))
+                    .collect(Collectors.toList());
 
-        // 2. 获取用户最近访问文件的关键词
-        List<String> userInterestKeywords = extractUserInterestKeywords(userId);
+            if (allSharedFiles.isEmpty()) {
+                return new ArrayList<>();
+            }
 
-        // 3. 基于用户偏好查找共享文件并添加随机因素
-        List<File> recommendedFiles = findRecommendedSharesWithRandomness(userId, userFileTypePreferences, userInterestKeywords);
+            // 2. 收集用户数据
+            Map<String, Object> userData = collectUserData(userId);
 
-        // 4. 转换为VO对象并添加随机化的推荐理由
-        return convertToVOWithRandomReason(recommendedFiles, userFileTypePreferences, userInterestKeywords);
+            // 3. 调用大模型AI推荐服务
+            List<Map<String, Object>> aiRecommendations =
+                    aIRecommendService.getRecommendations(allSharedFiles, userData);
+            // 4. 如果AI推荐失败或为空，回退到传统推荐算法
+            if (aiRecommendations.isEmpty()) {
+                log.info("大模型推荐为空，回退到增强版统计推荐算法");
+                return fallbackToStatisticalRecommendation(userId);
+            }
+
+            // 5. 转换AI推荐结果为FileVO列表
+            List<FileVO> recommendedFiles = new ArrayList<>();
+            for (Map<String, Object> rec : aiRecommendations) {
+                try {
+                    // 获取文件ID和推荐理由
+                    Long fileId = Long.valueOf(rec.get("fileId").toString());
+                    String reason = (String) rec.get("reason");
+
+                    // 查找文件
+                    File file = fileMapper.selectById(fileId);
+                    if (file != null && file.getIsDeleted() == 0 && file.getIsShared() == 1) {
+                        FileVO vo = convertToVO(file);
+                        vo.setReason(reason);
+
+                        // 设置推荐来源
+                        vo.setRecommendSource("百度文心一言");
+
+                        // 如果AI返回了推荐分数，也可以保存
+                        if (rec.containsKey("score")) {
+                            vo.setRecommendScore(Double.parseDouble(rec.get("score").toString()));
+                        }
+
+                        recommendedFiles.add(vo);
+                    }
+                } catch (Exception e) {
+                    log.error("处理AI推荐项失败: {}", e.getMessage(), e);
+                }
+            }
+
+            return recommendedFiles;
+        } catch (Exception e) {
+            log.error("AI推荐失败，回退到增强版统计推荐算法: {}", e.getMessage(), e);
+            return fallbackToStatisticalRecommendation(userId);
+        }
     }
 
     private Map<String, Integer> analyzeUserFileTypePreferences(Long userId) {
@@ -541,5 +598,255 @@ public class FileServiceImpl implements FileService {
         }
 
         return vos;
+    }
+
+    // 收集用户数据作为AI输入
+    private Map<String, Object> collectUserData(Long userId) {
+        Map<String, Object> userData = new HashMap<>();
+
+        // 基本用户信息
+        userData.put("userId", userId);
+
+        // 文件类型偏好
+        Map<String, Integer> typePreferences = getUserTypePreferences(userId);
+        userData.put("fileTypePreferences", typePreferences);
+
+        // 文件关键词
+        List<String> keywords = getUserKeywordPreferences(userId);
+        userData.put("interestKeywords", keywords);
+
+        // 用户近期操作
+        List<Map<String, Object>> recentActions = getRecentUserActions(userId);
+        userData.put("recentActions", recentActions);
+
+        return userData;
+    }
+
+    // 从Redis获取用户类型偏好
+    private Map<String, Integer> getUserTypePreferences(Long userId) {
+        Map<String, Integer> typePreferences = new HashMap<>();
+
+        // 首先尝试从AI引擎的用户偏好数据获取
+        String aiTypeKey = "ai:user:preferences:type:" + userId;
+        Map<Object, Object> aiTypePrefs = redisTemplate.opsForHash().entries(aiTypeKey);
+        if (aiTypePrefs != null && !aiTypePrefs.isEmpty()) {
+            for (Map.Entry<Object, Object> entry : aiTypePrefs.entrySet()) {
+                String type = entry.getKey().toString();
+                Integer count = Integer.parseInt(entry.getValue().toString());
+                typePreferences.put(type, count);
+            }
+        } else {
+            // 回退到分析用户文件
+            typePreferences = analyzeUserFileTypePreferences(userId);
+        }
+
+        return typePreferences;
+    }
+
+    // 从Redis获取用户关键词偏好
+    private List<String> getUserKeywordPreferences(Long userId) {
+        List<String> keywords = new ArrayList<>();
+
+        // 从AI引擎的用户关键词偏好获取
+        String keywordKey = "ai:user:preferences:keywords:" + userId;
+        Set<Object> topKeywords = redisTemplate.opsForZSet().reverseRange(keywordKey, 0, 19);
+
+        if (topKeywords != null && !topKeywords.isEmpty()) {
+            for (Object keyword : topKeywords) {
+                keywords.add(keyword.toString());
+            }
+        } else {
+            // 回退到分析用户文件名
+            keywords = extractUserInterestKeywords(userId);
+        }
+
+        return keywords;
+    }
+
+    // 获取用户最近操作
+    private List<Map<String, Object>> getRecentUserActions(Long userId) {
+        List<Map<String, Object>> actions = new ArrayList<>();
+
+        // 从Redis获取用户最近的下载、预览、操作记录
+        String actionKey = "user:actions:" + userId;
+        List<Object> recentActions = redisTemplate.opsForList().range(actionKey, 0, 19);
+
+        if (recentActions != null) {
+            for (Object action : recentActions) {
+                if (action instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> actionMap = (Map<String, Object>) action;
+                    actions.add(actionMap);
+                }
+            }
+        }
+
+        return actions;
+    }
+
+    // 回退到增强版统计推荐算法
+    private List<FileVO> fallbackToStatisticalRecommendation(Long userId) {
+        log.info("AI推荐引擎未返回结果，回退到增强版统计推荐算法");
+
+        // 获取用户的文件类型偏好
+        Map<String, Integer> userFileTypePreferences = analyzeUserFileTypePreferences(userId);
+
+        // 获取用户最近访问文件的关键词
+        List<String> userInterestKeywords = extractUserInterestKeywords(userId);
+
+        // 基于用户偏好查找共享文件
+        List<File> allSharedFiles = fileMapper.findSharedFiles().stream()
+                .filter(file -> !file.getUserId().equals(userId))
+                .collect(Collectors.toList());
+
+        if (allSharedFiles.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 改进的推荐策略 - 多样性推荐
+        List<FileVO> recommendedFiles = new ArrayList<>();
+        
+        // 1. 基于类型的相似推荐 (40%)
+        List<File> typeBasedRecommendations = getTypeBasedRecommendations(
+                allSharedFiles, userFileTypePreferences, 4);
+        
+        // 2. 热门文件推荐 (20%)
+        List<File> popularRecommendations = getPopularRecommendations(allSharedFiles, 2);
+        
+        // 3. 新文件推荐 (20%)
+        List<File> newFileRecommendations = getRecentFileRecommendations(allSharedFiles, 2);
+        
+        // 4. 探索性推荐 - 随机选择与用户当前偏好不同的文件 (20%)
+        List<File> exploratoryRecommendations = getExploratoryRecommendations(
+                allSharedFiles, userFileTypePreferences, 2);
+        
+        // 合并所有推荐并转换为VO
+        for (File file : typeBasedRecommendations) {
+            FileVO vo = convertToVO(file);
+            String fileType = file.getType();
+            vo.setReason("基于您对" + fileType + "类型文件的偏好");
+            vo.setRecommendSource("传统推荐");
+            vo.setRecommendCategory("兴趣匹配");
+            recommendedFiles.add(vo);
+        }
+        
+        for (File file : popularRecommendations) {
+            FileVO vo = convertToVO(file);
+            vo.setReason("近期热门共享文件");
+            vo.setRecommendSource("传统推荐");
+            vo.setRecommendCategory("热门推荐");
+            recommendedFiles.add(vo);
+        }
+        
+        for (File file : newFileRecommendations) {
+            FileVO vo = convertToVO(file);
+            vo.setReason("新上线的优质内容");
+            vo.setRecommendSource("传统推荐");
+            vo.setRecommendCategory("新上线");
+            recommendedFiles.add(vo);
+        }
+        
+        for (File file : exploratoryRecommendations) {
+            FileVO vo = convertToVO(file);
+            vo.setReason("为您探索的新领域内容");
+            vo.setRecommendSource("传统推荐");
+            vo.setRecommendCategory("探索推荐");
+            recommendedFiles.add(vo);
+        }
+        
+        // 打乱推荐顺序，增加随机性
+        Collections.shuffle(recommendedFiles);
+        
+        return recommendedFiles;
+    }
+
+    // 基于用户类型偏好的推荐
+    private List<File> getTypeBasedRecommendations(List<File> allFiles, 
+                                                  Map<String, Integer> typePrefs, 
+                                                  int count) {
+        // 如果用户没有明显偏好，返回随机文件
+        if (typePrefs.isEmpty()) {
+            Collections.shuffle(allFiles);
+            return allFiles.stream().limit(count).collect(Collectors.toList());
+        }
+        
+        // 对文件按类型匹配度排序
+        Map<File, Double> scores = new HashMap<>();
+        for (File file : allFiles) {
+            String type = file.getType();
+            int prefScore = typePrefs.getOrDefault(type, 0);
+            double score = prefScore + (Math.random() * 2); // 添加随机因素
+            scores.put(file, score);
+        }
+        
+        // 按分数排序并选取前几个
+        return scores.entrySet().stream()
+                .sorted(Map.Entry.<File, Double>comparingByValue().reversed())
+                .limit(count)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toList());
+    }
+
+    // 获取热门文件推荐（可以基于文件的下载量、预览次数等）
+    private List<File> getPopularRecommendations(List<File> allFiles, int count) {
+        // 这里简化处理，假设最近更新的文件更流行
+        // 实际项目中可以基于用户交互数据（如下载量、预览次数）
+        List<File> sortedByUpdate = new ArrayList<>(allFiles);
+        sortedByUpdate.sort(Comparator.comparing(File::getUpdateTime).reversed());
+        
+        // 添加随机性 - 从前50%的文件中随机选择
+        int poolSize = Math.max(count * 3, (int)(sortedByUpdate.size() * 0.5));
+        poolSize = Math.min(poolSize, sortedByUpdate.size());
+        
+        List<File> candidatePool = sortedByUpdate.subList(0, poolSize);
+        Collections.shuffle(candidatePool);
+        
+        return candidatePool.stream()
+                .limit(count)
+                .collect(Collectors.toList());
+    }
+
+    // 获取最新文件推荐
+    private List<File> getRecentFileRecommendations(List<File> allFiles, int count) {
+        // 按创建时间排序
+        List<File> sortedByCreate = new ArrayList<>(allFiles);
+        sortedByCreate.sort(Comparator.comparing(File::getCreateTime).reversed());
+        
+        // 添加随机性 - 从前30%的新文件中随机选择
+        int poolSize = Math.max(count * 2, (int)(sortedByCreate.size() * 0.3));
+        poolSize = Math.min(poolSize, sortedByCreate.size());
+        
+        List<File> candidatePool = sortedByCreate.subList(0, poolSize);
+        Collections.shuffle(candidatePool);
+        
+        return candidatePool.stream()
+                .limit(count)
+                .collect(Collectors.toList());
+    }
+
+    // 探索性推荐 - 推荐用户不常用类型的文件
+    private List<File> getExploratoryRecommendations(List<File> allFiles, 
+                                                    Map<String, Integer> typePrefs, 
+                                                    int count) {
+        // 获取用户不常用的文件类型
+        Set<String> commonTypes = typePrefs.entrySet().stream()
+                .filter(e -> e.getValue() > 1) // 用户经常使用的类型
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+        
+        // 找出不属于用户常用类型的文件
+        List<File> uncommonFiles = allFiles.stream()
+                .filter(file -> !commonTypes.contains(file.getType()))
+                .collect(Collectors.toList());
+        
+        // 如果没有足够的不常用类型文件，就从所有文件中随机选择
+        if (uncommonFiles.size() < count) {
+            Collections.shuffle(allFiles);
+            return allFiles.stream().limit(count).collect(Collectors.toList());
+        }
+        
+        // 随机选择一些不常用类型的文件
+        Collections.shuffle(uncommonFiles);
+        return uncommonFiles.stream().limit(count).collect(Collectors.toList());
     }
 }

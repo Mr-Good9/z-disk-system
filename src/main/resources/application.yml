@@ -83,3 +83,24 @@ logging:
     org.springframework.web.socket: DEBUG
     org.springframework.messaging: DEBUG
     com.good.zdisksystem.config: DEBUG
+
+# 大模型AI配置
+openai:
+  api:
+    key: your-openai-api-key
+    url: https://api.openai.com/v1/chat/completions
+
+# 或者使用百度文心一言
+baidu:
+  api:
+    key: I5uur8upxJncHv01
+    secret: 91dd93933a25455bacc585d60bc8b940
+    url: https://open.bigmodel.cn/api/paas/v4/chat/completions
+
+# 智普AI模型配置
+zhipu:
+  api:
+    key: 91dd93933a25455bacc585d60bc8b940.I5uur8upxJncHv01  # 替换为您的智普AI API密钥
+    secret: 91dd93933a25455bacc585d60bc8b940.I5uur8upxJncHv01  # 替换为您的智普AI API密钥对应的密钥
+    url: https://open.bigmodel.cn/api/paas/v4/chat/completions
+    model: glm-4-flash-250414  # 指定使用GLM-4-Flash模型
