@@ -1,7 +1,7 @@
 # 文件上传配置
 file:
   upload-path: ${user.dir}/uploads  # 使用相对路径
-  max-size: 100MB  # 最大文件大小
+  max-size: 1024MB  # 最大文件大小
   allowed-types: # 允许上传的文件类型
     - image/*
     - application/pdf
@@ -18,8 +18,8 @@ file:
 spring:
   servlet:
     multipart:
-      max-file-size: 100MB  # 单个文件大小限制
-      max-request-size: 100MB  # 总请求大小限制
+      max-file-size: 1000MB  # 单个文件大小限制
+      max-request-size: 1000MB  # 总请求大小限制
   jackson:
     serialization:
       FAIL_ON_EMPTY_BEANS: false
